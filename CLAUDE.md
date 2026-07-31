@@ -47,3 +47,45 @@
   3. **Append, don't rewrite.** A changed decision becomes a new node plus a `status: superseded` marker on the old one. The graph keeps its history; that history is what stops a question from being re-litigated.
   4. **Write the node when the decision is made**, not at the end. A decision recorded three days late has already lost its reasoning.
   5. **No index until it hurts.** Two nodes don't need a map of themselves. Add one past roughly six.
+
+# Plan mode
+
+- A plan is a **summary for a mixed team**, not an explanation. One document serves two readers: a junior engineer reading top to bottom without hand-holding, and the team lead skimming in under a minute. Serve both by being precise, never by being longer.
+
+  Required in every plan:
+  - **≈40 lines, hard cap.** Cut every line that does not change a decision. A line that survives only because it is true still goes.
+  - **Open with 2–3 lines of orientation** naming the part of the system touched and its current state, because a reader unfamiliar with that area cannot evaluate steps they can't place.
+  - **Lead with the approach and why it was chosen.** State intent explicitly — never leave it implied by the steps, because implied intent is what gets "corrected" by the next person.
+  - **Terse bullets only.** No prose paragraphs, no preamble, no restatement of the request, no closing summary.
+  - **Name, don't describe.** Exact paths (`apps/desktop/src-tauri/src/lib.rs`), symbol names (`invoke_handler`), and the established name of any pattern, library, or technique (`optimistic locking`, `adapter pattern`). A name is something a junior can look up; a description spends the lead's time re-deriving it. Never define the concept inline.
+  - **Non-obvious tradeoffs and rejected alternatives: one line each, with the reason for rejection**, because a rejected option recorded without its reason gets proposed again next week.
+  - **Risks, edge cases, and migration or compatibility concerns get their own lines**, because these are what the lead is skimming for; buried inside a step, they are invisible to the one person who can catch them.
+  - **Genuinely ambiguous points become open questions**, listed as questions. Do not guess at length in either direction.
+
+  Never in a plan:
+  - **Code snippets, diffs, or config bodies.** The plan names the file and the change; the implementation shows how.
+  - **Step-by-step tutorials, or testing and scaffolding boilerplate** a competent dev infers from the surrounding code.
+  - **Anything the surrounding code already makes obvious.**
+
+  Plan skeleton:
+
+  ```markdown
+  ## Context
+  2-3 lines: which part of the system, its current state, what forces the change.
+
+  ## Approach
+  - <decision>, because <reason>.
+  - Uses <named pattern or library>.
+
+  ## Changes
+  - `exact/path.ts` — what changes, named symbols.
+
+  ## Tradeoffs and rejected alternatives
+  - Chose X over Y — <reason>.
+
+  ## Risks
+  - <risk, edge case, migration or compatibility concern>.
+
+  ## Open questions
+  - <question>.
+  ```
