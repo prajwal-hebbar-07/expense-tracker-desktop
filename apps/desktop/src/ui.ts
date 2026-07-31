@@ -16,7 +16,7 @@ export const input =
   "placeholder:text-muted outline-none transition-colors " +
   "focus:border-accent focus:ring-2 focus:ring-accent/20";
 export const button =
-  "rounded-xl bg-accent px-4 py-2 text-sm font-medium text-accent-ink cursor-pointer " +
+  "rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-accent-ink cursor-pointer " +
   "transition-opacity hover:opacity-90 active:opacity-75 " +
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 export const cancelButton =

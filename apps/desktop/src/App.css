@@ -6,27 +6,31 @@
    scrollbars follow along without any CSS of ours. */
 :root {
   color-scheme: light dark;
-  --bg: #f4f3f0;
-  --surface: #fffefc;
-  --ink: #1e2024;
-  --muted: #6c7079;
-  --line: #e4e2dd;
-  --accent: #4a6fa5;
+  --bg: #f6f8fb;
+  --rail: #eef2f7;
+  --surface: #ffffff;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --accent: #2563eb;
   --accent-ink: #ffffff;
-  --credit: #2f7d5a;
+  --credit: #15803d;
+  --violet: #7c3aed;
   --danger: #b3261e;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #16181c;
-    --surface: #1d2026;
-    --ink: #e8e6e3;
-    --muted: #969ba3;
-    --line: #2c3037;
-    --accent: #8fb2dd;
-    --accent-ink: #16181c;
-    --credit: #6fcf9a;
+    --bg: #131a24;
+    --rail: #0f151d;
+    --surface: #182029;
+    --ink: #e8edf3;
+    --muted: #8b97a8;
+    --line: #263141;
+    --accent: #3b82f6;
+    --accent-ink: #ffffff;
+    --credit: #4ade80;
+    --violet: #a78bfa;
     --danger: #f0867d;
   }
 }
@@ -37,7 +41,9 @@
   --font-sans:
     ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --color-bg: var(--bg);
+  --color-rail: var(--rail);
   --color-surface: var(--surface);
+  --color-violet: var(--violet);
   --color-ink: var(--ink);
   --color-muted: var(--muted);
   --color-line: var(--line);

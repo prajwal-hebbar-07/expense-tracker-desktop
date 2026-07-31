@@ -4,6 +4,7 @@
 // is how an edit ends up accepting an amount the insert would have rejected.
 import { toMinor } from "./money";
 import { input } from "./ui";
+import { ChevronDown } from "./icons";
 
 export type Draft = {
   direction: "debit" | "credit";
@@ -64,6 +65,21 @@ export function toParams(d: Draft): { error: string } | { params: unknown[] } {
   };
 }
 
+/** A native <select> keeps the platform popup and keyboard behaviour; only the
+ *  closed-state arrow is ours, because the macOS one does not match the inputs
+ *  next to it. `appearance-none` is what hides it. */
+function Select({
+  className,
+  ...props
+}: React.SelectHTMLAttributes<HTMLSelectElement> & { className: string }) {
+  return (
+    <div className={`relative ${className}`}>
+      <select {...props} className={`${input} w-full appearance-none pr-9`} />
+      <ChevronDown className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted" />
+    </div>
+  );
+}
+
 export function Fields({
   draft,
   onChange,
@@ -80,21 +96,26 @@ export function Fields({
 
   return (
     <>
-      <select
-        className={`${input} w-28`}
+      <Select
+        className="w-32"
         value={draft.direction}
         onChange={(e) => set("direction", e.currentTarget.value as Draft["direction"])}
       >
         <option value="debit">Debit</option>
         <option value="credit">Credit</option>
-      </select>
-      <input
-        className={`${input} w-32 text-right`}
-        placeholder="Amount"
-        inputMode="decimal"
-        value={draft.amount}
-        onChange={(e) => set("amount", e.currentTarget.value)}
-      />
+      </Select>
+      <div className="relative w-36">
+        <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted">
+          ₹
+        </span>
+        <input
+          className={`${input} w-full pl-7 text-right`}
+          placeholder="Amount"
+          inputMode="decimal"
+          value={draft.amount}
+          onChange={(e) => set("amount", e.currentTarget.value)}
+        />
+      </div>
       <input
         className={`${input} flex-1 min-w-40`}
         placeholder="Title"
@@ -107,8 +128,10 @@ export function Fields({
         value={draft.date}
         onChange={(e) => set("date", e.currentTarget.value)}
       />
-      <select
-        className={`${input} flex-1 min-w-48`}
+      {/* Full width, so it starts the second row and the four fields above it
+          stay on one line at the widths this window is used at. */}
+      <Select
+        className="w-full"
         value={draft.source}
         onChange={(e) => set("source", e.currentTarget.value)}
       >
@@ -127,7 +150,7 @@ export function Fields({
             </option>
           ))}
         </optgroup>
-      </select>
+      </Select>
       <textarea
         className={`${input} min-h-20 w-full resize-y`}
         placeholder="Why did this money move? (optional)"

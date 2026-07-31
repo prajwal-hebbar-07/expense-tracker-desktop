@@ -18,7 +18,8 @@ Colour is defined once in `apps/desktop/src/App.css` as plain CSS variables, re-
 4. **Keep `color-scheme: light dark` on `:root`.** It is what makes the native `<input type="date">` picker, `<select>` popup and scrollbars follow the theme; the WebView renders them itself and no CSS of ours reaches inside.
 5. **Set width utilities at the call site, not in `ui.ts`.** Two competing `min-w-*` utilities on one element resolve by stylesheet order, not by which string was concatenated last — `input` deliberately carries no width.
 6. **Responsiveness is CSS-only, at the `lg` breakpoint (64rem).** Do not add a JS width listener or a second nav element; the layout must survive a half-screen window, and `minWidth: 420` in `tauri.conf.json` is the narrowest width the design is expected to hold.
-7. **On a light-red-in-dark-mode surface use `text-surface`, not `text-white`** (`dangerButton`), because `--danger` inverts between themes and white-on-pink is unreadable.
+7. **Icons come from `src/icons.tsx` as inline SVG — do not add an icon package.** Each glyph is a standard 24×24 stroke path on `currentColor`, so colour is a text utility (`text-accent`, `text-violet`) and size is `size-*`. Paste new Lucide/Feather paths in rather than installing the library.
+8. **On a light-red-in-dark-mode surface use `text-surface`, not `text-white`** (`dangerButton`), because `--danger` inverts between themes and white-on-pink is unreadable.
 
 ## Contract
 
@@ -26,15 +27,21 @@ Colour is defined once in `apps/desktop/src/App.css` as plain CSS variables, re-
 
 | Variable | Utility | Light | Dark |
 |---|---|---|---|
-| `--bg` | `bg-bg` | `#f4f3f0` | `#16181c` |
-| `--surface` | `bg-surface` | `#fffefc` | `#1d2026` |
-| `--ink` | `text-ink` | `#1e2024` | `#e8e6e3` |
-| `--muted` | `text-muted` | `#6c7079` | `#969ba3` |
-| `--line` | `border-line`, `divide-line` | `#e4e2dd` | `#2c3037` |
-| `--accent` | `bg-accent`, `text-accent` | `#4a6fa5` | `#8fb2dd` |
-| `--accent-ink` | `text-accent-ink` | `#ffffff` | `#16181c` |
-| `--credit` | `text-credit` | `#2f7d5a` | `#6fcf9a` |
+| `--bg` | `bg-bg` | `#f6f8fb` | `#131a24` |
+| `--rail` | `bg-rail` | `#eef2f7` | `#0f151d` |
+| `--surface` | `bg-surface` | `#ffffff` | `#182029` |
+| `--ink` | `text-ink` | `#0f172a` | `#e8edf3` |
+| `--muted` | `text-muted` | `#64748b` | `#8b97a8` |
+| `--line` | `border-line`, `divide-line` | `#e2e8f0` | `#263141` |
+| `--accent` | `bg-accent`, `text-accent` | `#2563eb` | `#3b82f6` |
+| `--accent-ink` | `text-accent-ink` | `#ffffff` | `#ffffff` |
+| `--credit` | `text-credit` | `#15803d` | `#4ade80` |
+| `--violet` | `text-violet` | `#7c3aed` | `#a78bfa` |
 | `--danger` | `bg-danger`, `text-danger` | `#b3261e` | `#f0867d` |
+
+`--rail` is the nav's background; it is deliberately a shade *away* from `--bg` (darker in dark mode, lighter in light) so the rail reads as chrome rather than as page.
+
+`apps/desktop/src/icons.tsx` exports: `Wallet`, `Home`, `List`, `Sliders`, `Bank`, `Card`, `ArrowsUpDown`, `Calendar`, `Info`, `ChevronDown`.
 
 `apps/desktop/src/ui.ts` exports: `page`, `h1`, `h2`, `card`, `input`, `button`, `cancelButton`, `iconButton`, `dangerButton`, `errorBox`, `noticeBox`.
 
