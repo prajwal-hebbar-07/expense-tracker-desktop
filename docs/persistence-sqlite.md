@@ -3,7 +3,7 @@ id: persistence-sqlite
 type: decision
 status: active
 updated: 2026-07-31
-links: [stack, repo-layout, settings-schema]
+links: [stack, repo-layout, settings-schema, transaction-ledger, derived-balances]
 ---
 
 # Persistence: SQLite via tauri-plugin-sql
@@ -12,7 +12,7 @@ Expenses are stored in a single SQLite file inside the macOS application data di
 
 **Implemented 2026-07-31 and verified end-to-end**: the app was launched, the database was created at the resolved path, and migration 1 applied — `_sqlx_migrations` records it and `.schema` shows `expense`, `settings`, and `idx_expense_spent_at`. The shapes below were checked against `tauri-plugin-sql` `2.4.0` source, not recalled.
 
-No expense UI exists yet. The only caller today is a single `Database.load()` in `apps/desktop/src/main.tsx`, which exists precisely so the migration runs — deleting it means a fresh install never creates the schema.
+The connection is opened once by `apps/desktop/src/db.ts`, imported from `main.tsx` so the migration runs at startup — deleting that import means a fresh install never creates the schema. The expense UI is [[transaction-ledger]].
 
 ## Rules for an agent working here
 
@@ -100,6 +100,7 @@ CREATE INDEX idx_expense_spent_at ON expense (spent_at);
 |---|---|---|
 | 1 | `create_expense_table` | `expense`, `idx_expense_spent_at`, `settings` |
 | 2 | `create_account_and_card_tables` | `account`, `card` — see [[settings-schema]] |
+| 3 | `add_direction_and_source_to_expense` | `expense.direction`, `expense.account_id`, `expense.card_id` — see [[transaction-ledger]] |
 
 ⚠ Migration 1 timestamps with `datetime('now')` (no `T`, no `Z`), which contradicts rule 4. It has shipped and must not be edited; migration 2 onward uses `strftime('%Y-%m-%dT%H:%M:%SZ','now')`. [[settings-schema]] documents the split.
 

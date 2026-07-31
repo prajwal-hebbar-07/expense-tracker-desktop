@@ -9,7 +9,7 @@
     "vite:dev": "vite",
     "vite:build": "tsc && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "node --test money.check.ts",
+    "test": "node --test *.check.ts",
     "preview": "vite preview",
     "tauri": "tauri"
   },

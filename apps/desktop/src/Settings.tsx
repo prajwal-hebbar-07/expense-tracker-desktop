@@ -1,28 +1,11 @@
 import { useEffect, useState } from "react";
 import { db } from "./db";
 import { toMinor, fromMinor, formatAmount } from "./money";
+import { input, button, iconButton, cancelButton, dangerButton } from "./ui";
 
 type Account = { id: number; bank: string; balance: number; currency: string };
 type Card = { id: number; bank: string; name: string | null; last4: string | null };
 type Pending = { table: "account" | "card"; id: number };
-
-const input =
-  "rounded-lg border border-black/15 dark:border-white/20 px-3 py-2 text-base " +
-  "bg-white text-[#0f0f0f] dark:bg-[#0f0f0f98] dark:text-white outline-none " +
-  "focus:border-[#396cd8] transition-[border-color] duration-[250ms]";
-const button =
-  "rounded-lg border border-transparent px-4 py-2 text-base font-medium cursor-pointer " +
-  "bg-white text-[#0f0f0f] dark:bg-[#0f0f0f98] dark:text-white " +
-  "shadow-[0_2px_2px_rgba(0,0,0,0.2)] hover:border-[#396cd8] active:bg-[#e8e8e8] " +
-  "dark:active:bg-[#0f0f0f69] transition-[border-color] duration-[250ms]";
-const iconButton = "px-2 py-1 text-sm opacity-60 hover:opacity-100 cursor-pointer";
-const cancelButton =
-  "rounded-lg px-4 py-2 text-sm font-medium cursor-pointer bg-white text-[#0f0f0f] " +
-  "dark:bg-[#0f0f0f98] dark:text-white shadow-[0_2px_2px_rgba(0,0,0,0.2)] " +
-  "border border-transparent hover:border-[#396cd8]";
-const dangerButton =
-  "rounded-lg px-4 py-2 text-sm font-medium cursor-pointer bg-red-600 text-white " +
-  "hover:bg-red-700 active:bg-red-800 shadow-[0_2px_2px_rgba(0,0,0,0.2)]";
 
 /**
  * Two-step delete guard. Deliberately *not* window.confirm(): wry's WKUIDelegate
@@ -187,6 +170,9 @@ export default function Settings() {
 
       <section className="mt-10">
         <h2 className="text-xl font-medium">Bank accounts</h2>
+        <p className="mt-1 text-sm opacity-60">
+          Opening balances. Transactions adjust them — the live figure is on that screen.
+        </p>
 
         <ul className="mt-4 divide-y divide-black/10 dark:divide-white/10">
           {accounts.map((a) => (
@@ -246,7 +232,7 @@ export default function Settings() {
 
         {accounts.length > 0 && (
           <p className="flex justify-between border-t border-black/20 py-3 font-medium dark:border-white/20">
-            <span>Total</span>
+            <span>Total opening</span>
             <span className="tabular-nums">{formatAmount(total)}</span>
           </p>
         )}
@@ -260,7 +246,7 @@ export default function Settings() {
           />
           <input
             className={`${input} w-40 text-right`}
-            placeholder="Balance"
+            placeholder="Opening balance"
             inputMode="decimal"
             value={balance}
             onChange={(e) => setBalance(e.currentTarget.value)}

@@ -1,0 +1,73 @@
+---
+id: transaction-ledger
+type: decision
+status: active
+updated: 2026-07-31
+links: [persistence-sqlite, settings-schema, derived-balances]
+---
+
+# Recording a transaction
+
+Money in and money out are the same row. Migration 3 extends `expense` with `direction`, `account_id`, and `card_id` rather than adding a second table, because a credit and a debit differ by one word and every query — totals, balances, the recent list — would otherwise be written twice and `UNION`ed.
+
+The table keeps the name `expense` even though it now holds credits too. Renaming it means a full table rebuild for a word; the column that matters is `direction`.
+
+The UI is `apps/desktop/src/Transactions.tsx` (the default tab), with the SQL in `apps/desktop/src/queries.ts` so `apps/desktop/balances.check.ts` can run it against a real database.
+
+## Rules for an agent working here
+
+1. **Never store a negative `amount`.** Migration 1 froze `CHECK (amount > 0)` onto the column and it cannot be dropped without a table rebuild. Direction is a word, not a sign — a `-500` insert fails at SQL, not review.
+2. **Set exactly one of `account_id` and `card_id`, never both and never neither**, because a transaction has one source and the joins in `RECENT` `COALESCE` across the two. This is **not** enforced by a `CHECK` — see the contract below for why — so the form is the only guard.
+3. **A card transaction never touches an account balance**, because paying the card bill is itself a transaction (a debit on the account, a credit on the card). Applying it at spend time double-counts.
+4. **Write `spent_at` as `${date}T00:00:00Z`** from the `<input type="date">` value, because `MONTH_TOTALS` filters on `substr(spent_at, 1, 7)` and a bare `YYYY-MM-DD` would still match but a locale-formatted date would not.
+5. **Convert with `toMinor()` and reject `null` *and* `<= 0`** before inserting — see rule 4 of [[settings-schema]].
+
+## Contract
+
+Migration 3, `add_direction_and_source_to_expense`, in `apps/desktop/src-tauri/src/lib.rs`:
+
+```sql
+ALTER TABLE expense ADD COLUMN direction TEXT NOT NULL DEFAULT 'debit'
+  CHECK (direction IN ('debit','credit'));
+ALTER TABLE expense ADD COLUMN account_id INTEGER REFERENCES account(id);
+ALTER TABLE expense ADD COLUMN card_id    INTEGER REFERENCES card(id);
+```
+
+⚠ **There is deliberately no `CHECK ((account_id IS NULL) <> (card_id IS NULL))`.** Verified against SQLite 3.51.0: a `CHECK` added by `ALTER TABLE … ADD COLUMN` **is** validated against existing rows, and it fails with `stepping, CHECK constraint failed`. Any `expense` row written before migration 3 has both columns `NULL`, so adding that constraint makes migration 3 fail permanently on that install — an unrecoverable state, since the migration cannot then be edited either. Do not "tighten" this later without a table rebuild.
+
+`direction` is `NOT NULL DEFAULT 'debit'` because `ADD COLUMN … NOT NULL` requires a constant default. Pre-existing rows are expenses, so `debit` is the right backfill.
+
+### Source encoding in the form
+
+One `<select>` with two `<optgroup>`s, values `a:<id>` / `c:<id>`. Two coupled selects would need a "clear the other one" rule; one select makes "exactly one source" unrepresentable-otherwise.
+
+### Queries — `apps/desktop/src/queries.ts`
+
+| Export | Returns |
+|---|---|
+| `ACCOUNT_BALANCES` | `id, bank, currency, balance` — live, see [[derived-balances]] |
+| `CARD_OUTSTANDING` | `id, bank, name, last4, outstanding` — debits minus credits; negative means in credit |
+| `MONTH_TOTALS` | `direction, total` for `$1` = local `YYYY-MM` |
+| `RECENT` | last 25 with a `source` label `COALESCE`d across account and card |
+| `INSERT_TRANSACTION` | 8 bound params in schema order |
+| `CATEGORIES` | distinct categories, feeding the `<datalist>` |
+
+Checked by `apps/desktop/balances.check.ts` (`pnpm --filter desktop test`), which extracts the migration SQL out of `lib.rs` by regex and runs it in `node:sqlite`, so the schema in the test cannot drift from the shipped one.
+
+## Anti-patterns
+
+- **A separate `income` table.** Every aggregate doubles and the two drift.
+- **Signed amounts to mean direction.** Rule 1; SQLite rejects it outright.
+- **Deducting a card spend from the linked bank account at spend time.** Rule 3.
+- **Adding the XOR `CHECK` in a later migration** without rebuilding the table. It bricks any install with pre-migration-3 rows.
+- **Storing `spent_at` from `toISOString()` on a `Date` built from the date input.** That shifts the day backwards for anyone east of UTC — the form composes the string from the local `YYYY-MM-DD` instead.
+
+## Failure modes
+
+| Symptom | Cause | Action |
+|---|---|---|
+| `CHECK constraint failed: amount > 0` | A negative amount was passed for a debit | Rule 1 — pass the magnitude and set `direction` |
+| `CHECK constraint failed: direction IN (...)` | A value other than `debit`/`credit` | The `<select>` only offers two; a caller bypassed it |
+| A transaction shows `unassigned` in Recent | Both `account_id` and `card_id` were `NULL` | Rule 2; no `CHECK` catches this |
+| A spend lands in the wrong month | `spent_at` written without the `T00:00:00Z` suffix, or via `toISOString()` | Rule 4 |
+| Migration 3 fails on one machine only | That install has `expense` rows and a `CHECK` was added to `ADD COLUMN` | Do not add it; see the contract warning |

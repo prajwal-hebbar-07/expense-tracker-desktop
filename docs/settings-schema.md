@@ -3,12 +3,14 @@ id: settings-schema
 type: decision
 status: active
 updated: 2026-07-31
-links: [persistence-sqlite, stack]
+links: [persistence-sqlite, stack, derived-balances, transaction-ledger]
 ---
 
 # Accounts and cards schema
 
 The Settings screen records which bank each account is in and its current balance, plus which credit cards the user holds. These are **entity lists, not settings rows** — they live in their own `account` and `card` tables, added by migration 2. The `settings` key/value table stays reserved for the two Ollama keys described in [[persistence-sqlite]]; putting an account in it would mean encoding a list into a single `value` string.
+
+⚠ Since migration 3, `account.balance` is the **opening** balance, not the current one — transactions are not written back into it. Every rule below still applies to it; see [[derived-balances]] before reading or editing that column.
 
 There is no authentication and no `user_id` column anywhere: one person uses this app on one machine, and a foreign key to a users table that will never have a second row is pure ceremony.
 

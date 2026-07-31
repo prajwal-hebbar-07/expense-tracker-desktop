@@ -51,6 +51,25 @@ fn migrations() -> Vec<Migration> {
         ",
             kind: MigrationKind::Up,
         },
+        // `direction` carries money-in vs money-out because migration 1 froze
+        // CHECK (amount > 0) onto `expense.amount`, so the sign cannot.
+        //
+        // No CHECK that exactly one of account_id/card_id is set: SQLite
+        // *does* validate a CHECK added by ADD COLUMN against existing rows,
+        // and any expense row predating this migration has both NULL, which
+        // would make the migration fail permanently on that install. The
+        // form enforces it instead.
+        Migration {
+            version: 3,
+            description: "add_direction_and_source_to_expense",
+            sql: "
+            ALTER TABLE expense ADD COLUMN direction TEXT NOT NULL DEFAULT 'debit'
+              CHECK (direction IN ('debit','credit'));
+            ALTER TABLE expense ADD COLUMN account_id INTEGER REFERENCES account(id);
+            ALTER TABLE expense ADD COLUMN card_id    INTEGER REFERENCES card(id);
+        ",
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
