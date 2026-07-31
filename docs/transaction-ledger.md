@@ -16,6 +16,8 @@ Entry and history are **two separate tabs**, not two sections of one screen: `ap
 
 The form's text fields are **`title` (mandatory) and `note` (optional, the "why")**, added by migration 4. There is no category field: how a transaction gets categorised is undecided, so the form does not guess at it.
 
+Rows are **edited in place on the list and deleted behind the same two-step guard as Settings**. Both screens drive the same six fields through `apps/desktop/src/transactionForm.tsx`, which owns the `Draft` type, the `Fields` component and `toParams` — the single validator. A second copy of that validation is how an edit ends up accepting an amount the insert would have rejected.
+
 `App.tsx` swaps components rather than keeping both mounted, so the list refetches on every visit and needs no shared state or cache invalidation. The tradeoff is that the Add screen has no list to confirm against, which is why it shows a "Saved …" line after an insert.
 
 ## Rules for an agent working here
@@ -25,6 +27,9 @@ The form's text fields are **`title` (mandatory) and `note` (optional, the "why"
 3. **A card transaction never touches an account balance**, because paying the card bill is itself a transaction (a debit on the account, a credit on the card). Applying it at spend time double-counts.
 4. **Write `spent_at` as `${date}T00:00:00Z`** from the `<input type="date">` value, because `MONTH_TOTALS` filters on `substr(spent_at, 1, 7)` and a bare `YYYY-MM-DD` would still match but a locale-formatted date would not.
 5. **Convert with `toMinor()` and reject `null` *and* `<= 0`** before inserting — see rule 4 of [[settings-schema]].
+6. **Route every write through `toParams` in `transactionForm.tsx`**, because `INSERT_TRANSACTION` and `UPDATE_TRANSACTION` deliberately take the same eight parameters in the same order. Building either param list by hand is what lets the two drift.
+7. **Never soft-delete.** `DELETE_TRANSACTION` really removes the row, because balances are derived ([[derived-balances]]) — a `deleted_at` flag would have to be filtered out of every aggregate, and the one that gets missed is silently wrong.
+8. **Use `ConfirmDelete` from `apps/desktop/src/ConfirmDelete.tsx`, never `window.confirm()`** — that component's docblock explains why the native dialog silently returns `false` under wry.
 
 ## Contract
 
@@ -65,8 +70,10 @@ One `<select>` with two `<optgroup>`s, values `a:<id>` / `c:<id>`. Two coupled s
 | `ACCOUNT_BALANCES` | `id, bank, currency, balance` — live, see [[derived-balances]] |
 | `CARD_OUTSTANDING` | `id, bank, name, last4, outstanding` — debits minus credits; negative means in credit |
 | `MONTH_TOTALS` | `direction, total` for `$1` = local `YYYY-MM` |
-| `TRANSACTIONS` | last 200, newest first, with a `source` label `COALESCE`d across account and card |
+| `TRANSACTIONS` | last 200, newest first, with `account_id`/`card_id` for the editor and a `source` label `COALESCE`d across the two |
 | `INSERT_TRANSACTION` | 8 bound params — amount, currency, title, note, spent_at, direction, account_id, card_id. `category` is the literal `''` in the SQL, not a param |
+| `UPDATE_TRANSACTION` | the same 8, same order, plus the id as `$9` |
+| `DELETE_TRANSACTION` | id as `$1`; a hard delete |
 
 Checked by `apps/desktop/balances.check.ts` (`pnpm --filter desktop test`), which extracts the migration SQL out of `lib.rs` by regex and runs it in `node:sqlite`, so the schema in the test cannot drift from the shipped one.
 
@@ -77,6 +84,9 @@ Checked by `apps/desktop/balances.check.ts` (`pnpm --filter desktop test`), whic
 - **Deducting a card spend from the linked bank account at spend time.** Rule 3.
 - **Adding the XOR `CHECK` in a later migration** without rebuilding the table. It bricks any install with pre-migration-3 rows.
 - **Storing `spent_at` from `toISOString()` on a `Date` built from the date input.** That shifts the day backwards for anyone east of UTC — the form composes the string from the local `YYYY-MM-DD` instead.
+- **A second validator for the edit path**, or a hand-built `UPDATE` param list. Rule 6.
+- **A `deleted_at` soft-delete column.** Rule 7.
+- **Adjusting `account.balance` when a transaction is edited or deleted.** Nothing to adjust — see [[derived-balances]].
 
 ## Failure modes
 
@@ -87,3 +97,5 @@ Checked by `apps/desktop/balances.check.ts` (`pnpm --filter desktop test`), whic
 | A transaction shows `unassigned` in the list | Both `account_id` and `card_id` were `NULL` | Rule 2; no `CHECK` catches this |
 | A spend lands in the wrong month | `spent_at` written without the `T00:00:00Z` suffix, or via `toISOString()` | Rule 4 |
 | Migration 3 fails on one machine only | That install has `expense` rows and a `CHECK` was added to `ADD COLUMN` | Do not add it; see the contract warning |
+| An edit saves but a field is unchanged, or lands in the wrong column | `UPDATE_TRANSACTION`'s `SET` order no longer matches `toParams` | Rule 6; `balances.check.ts` asserts every field after an update |
+| Delete appears to do nothing | The confirm step was never reached, or `window.confirm()` crept back in | Rule 8 |

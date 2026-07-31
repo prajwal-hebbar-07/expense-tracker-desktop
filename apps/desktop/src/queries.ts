@@ -36,6 +36,7 @@ export const MONTH_TOTALS = `
 
 export const TRANSACTIONS = `
   SELECT e.id, e.amount, e.currency, e.title, e.note, e.spent_at, e.direction,
+         e.account_id, e.card_id,
          COALESCE(a.bank, c.bank || COALESCE(' ' || c.name, '')) AS source
   FROM expense e
   LEFT JOIN account a ON a.id = e.account_id
@@ -51,3 +52,14 @@ export const TRANSACTIONS = `
 export const INSERT_TRANSACTION = `
   INSERT INTO expense (amount, currency, title, note, category, spent_at, direction, account_id, card_id)
   VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8)`;
+
+// Same eight parameters as INSERT_TRANSACTION, in the same order, plus the id.
+// They are built by one `toParams` in transactionForm.tsx so an edit can never
+// accept a value the insert would have rejected.
+export const UPDATE_TRANSACTION = `
+  UPDATE expense
+  SET amount = $1, currency = $2, title = $3, note = $4,
+      spent_at = $5, direction = $6, account_id = $7, card_id = $8
+  WHERE id = $9`;
+
+export const DELETE_TRANSACTION = `DELETE FROM expense WHERE id = $1`;

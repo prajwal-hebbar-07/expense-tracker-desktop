@@ -12,6 +12,8 @@ import {
   CARD_OUTSTANDING,
   MONTH_TOTALS,
   INSERT_TRANSACTION,
+  UPDATE_TRANSACTION,
+  DELETE_TRANSACTION,
 } from "./src/queries.ts";
 
 /** The migration bodies out of lib.rs, so a schema change here cannot drift. */
@@ -91,6 +93,45 @@ test("direction is constrained and defaults to debit", () => {
     "INSERT INTO expense (amount, title, category, spent_at) VALUES (100,'legacy','food','2026-07-01T00:00:00Z')",
   );
   assert.equal(db.prepare("SELECT direction FROM expense").get()!.direction, "debit");
+});
+
+// UPDATE_TRANSACTION takes the same eight params as INSERT_TRANSACTION plus the
+// id. Nothing but this catches the two drifting apart — SQLite happily writes an
+// amount into `spent_at`, since both columns accept anything.
+test("editing a transaction rewrites every field and moves the balance", () => {
+  const db = seed();
+  book(db, 25000, "debit", "account");
+  assert.equal(db.prepare(ACCOUNT_BALANCES).get()!.balance, 75000);
+
+  db.prepare(UPDATE_TRANSACTION.replace(/\$\d/g, "?")).run(
+    9900,
+    "INR",
+    "corrected",
+    "typed a zero too many",
+    "2026-07-20T00:00:00Z",
+    "credit",
+    1,
+    null,
+    1,
+  );
+
+  const row = db.prepare("SELECT * FROM expense WHERE id = 1").get()!;
+  assert.equal(row.amount, 9900);
+  assert.equal(row.title, "corrected");
+  assert.equal(row.note, "typed a zero too many");
+  assert.equal(row.spent_at, "2026-07-20T00:00:00Z");
+  assert.equal(row.direction, "credit");
+  assert.equal(db.prepare(ACCOUNT_BALANCES).get()!.balance, 109900); // 100000 + 9900
+});
+
+test("deleting a transaction gives the balance back", () => {
+  const db = seed();
+  book(db, 25000, "debit", "account");
+  book(db, 90000, "debit", "card");
+  db.prepare(DELETE_TRANSACTION.replace("$1", "?")).run(1);
+
+  assert.equal(db.prepare(ACCOUNT_BALANCES).get()!.balance, 100000);
+  assert.equal(db.prepare(CARD_OUTSTANDING).get()!.outstanding, 90000); // untouched
 });
 
 test("migration 4 renames description to title and leaves note optional", () => {

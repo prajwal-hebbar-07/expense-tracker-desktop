@@ -1,13 +1,9 @@
 import { useEffect, useState } from "react";
 import { db } from "./db";
-import { toMinor, formatAmount } from "./money";
-import { input, button } from "./ui";
-import {
-  ACCOUNT_BALANCES,
-  CARD_OUTSTANDING,
-  MONTH_TOTALS,
-  INSERT_TRANSACTION,
-} from "./queries";
+import { formatAmount } from "./money";
+import { button } from "./ui";
+import { Draft, Fields, cardLabel, emptyDraft, toParams, today } from "./transactionForm";
+import { ACCOUNT_BALANCES, CARD_OUTSTANDING, MONTH_TOTALS, INSERT_TRANSACTION } from "./queries";
 
 type Balance = { id: number; bank: string; currency: string; balance: number };
 type Outstanding = {
@@ -17,12 +13,6 @@ type Outstanding = {
   last4: string | null;
   outstanding: number;
 };
-
-/** Local calendar day as `YYYY-MM-DD` — what `<input type="date">` expects. */
-const today = () => new Date().toLocaleDateString("en-CA");
-
-const cardLabel = (c: Outstanding) =>
-  [c.bank, c.name, c.last4 && `••••${c.last4}`].filter(Boolean).join(" ");
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -40,14 +30,7 @@ export default function AddTransaction() {
   const [month, setMonth] = useState({ debit: 0, credit: 0 });
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
-
-  const [direction, setDirection] = useState<"debit" | "credit">("debit");
-  const [amount, setAmount] = useState("");
-  const [title, setTitle] = useState("");
-  const [note, setNote] = useState("");
-  const [date, setDate] = useState(today);
-  // "a:3" = account 3, "c:5" = card 5. One select instead of two coupled ones.
-  const [source, setSource] = useState("");
+  const [draft, setDraft] = useState<Draft>(emptyDraft);
 
   async function refresh() {
     const conn = await db;
@@ -70,34 +53,19 @@ export default function AddTransaction() {
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    const minor = toMinor(amount);
-    // The schema's CHECK (amount > 0) means direction, not the sign, carries
-    // "money out" — a negative here would be rejected by SQLite anyway.
-    if (minor === null || minor <= 0)
-      return setError(`"${amount}" is not a positive amount.`);
-    if (!title.trim()) return setError("Title is required.");
-    if (!source) return setError("Pick the account or card this went through.");
+    const result = toParams(draft);
+    if ("error" in result) return setError(result.error);
 
-    const [kind, id] = source.split(":");
-    const label = title.trim();
+    const label = `${draft.title.trim()} · ${formatAmount(result.params[0] as number)}`;
     setError(null);
     (async () => {
-      await (await db).execute(INSERT_TRANSACTION, [
-        minor,
-        "INR",
-        label,
-        note.trim() || null, // '' would read as "there is a note, it is empty"
-        `${date}T00:00:00Z`,
-        direction,
-        kind === "a" ? Number(id) : null,
-        kind === "c" ? Number(id) : null,
-      ]);
-      setAmount("");
-      setTitle("");
-      setNote("");
-      // The list lives on another page now, so a confirmation is the only
-      // feedback that the row landed.
-      setSaved(`${label} · ${formatAmount(minor)}`);
+      await (await db).execute(INSERT_TRANSACTION, result.params);
+      // Keep direction, date and source — entering a run of expenses from one
+      // card is the common case, and retyping them each time is the annoyance.
+      setDraft({ ...draft, amount: "", title: "", note: "" });
+      // The list lives on another page now, so this is the only feedback that
+      // the row landed.
+      setSaved(label);
     })()
       .then(refresh)
       .catch((e) => setError(String(e)));
@@ -129,59 +97,11 @@ export default function AddTransaction() {
       )}
 
       <form onSubmit={submit} className="mt-6 flex flex-wrap gap-2">
-        <select
-          className={`${input} w-28`}
-          value={direction}
-          onChange={(e) => setDirection(e.currentTarget.value as "debit" | "credit")}
-        >
-          <option value="debit">Debit</option>
-          <option value="credit">Credit</option>
-        </select>
-        <input
-          className={`${input} w-32 text-right`}
-          placeholder="Amount"
-          inputMode="decimal"
-          value={amount}
-          onChange={(e) => setAmount(e.currentTarget.value)}
-        />
-        <input
-          className={`${input} flex-1 min-w-40`}
-          placeholder="Title"
-          value={title}
-          onChange={(e) => setTitle(e.currentTarget.value)}
-        />
-        <input
-          className={`${input} w-40`}
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.currentTarget.value)}
-        />
-        <select
-          className={`${input} flex-1 min-w-48`}
-          value={source}
-          onChange={(e) => setSource(e.currentTarget.value)}
-        >
-          <option value="">Account or card…</option>
-          <optgroup label="Bank accounts">
-            {balances.map((a) => (
-              <option key={a.id} value={`a:${a.id}`}>
-                {a.bank}
-              </option>
-            ))}
-          </optgroup>
-          <optgroup label="Credit cards">
-            {cards.map((c) => (
-              <option key={c.id} value={`c:${c.id}`}>
-                {cardLabel(c)}
-              </option>
-            ))}
-          </optgroup>
-        </select>
-        <textarea
-          className={`${input} min-h-20 w-full resize-y`}
-          placeholder="Why did this money move? (optional)"
-          value={note}
-          onChange={(e) => setNote(e.currentTarget.value)}
+        <Fields
+          draft={draft}
+          onChange={setDraft}
+          accounts={balances.map((a) => ({ id: a.id, label: a.bank }))}
+          cards={cards.map((c) => ({ id: c.id, label: cardLabel(c) }))}
         />
         <button type="submit" className={button}>
           Add
