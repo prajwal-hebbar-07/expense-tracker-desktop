@@ -100,8 +100,12 @@ function generate(from: string, to: string): Txn[] {
       if (category === "Rent") continue; // rent is monthly, booked above
       const { source, kind } = weighted(rnd, SOURCES);
       // Long tail: most spends are small, a few are not.
-      // Long tail: ₹80–₹980 most days, ₹400–₹6,400 for the occasional big one.
-      const base = rnd() < 0.12 ? 400_00 + rnd() * 6_000_00 : 80_00 + rnd() * 900_00;
+      // Long tail: ₹80–₹980 most days, ₹400–₹6,400 for the occasional big one —
+      // but only where a big one is plausible. A ₹6,000 Netflix charge would
+      // make the report's "sleep on anything over ₹3,000" advice look silly.
+      const canBeLarge = /Shopping|Eating out|Health|Groceries/.test(category);
+      const base =
+        canBeLarge && rnd() < 0.15 ? 400_00 + rnd() * 6_000_00 : 80_00 + rnd() * 900_00;
       out.push({
         date,
         amount: Math.round(base / 50_0) * 50_0,

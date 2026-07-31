@@ -101,3 +101,46 @@ export const BarChart = (p: Props) => (
     <path d="M8 17V9M13 17V5M18 17v-5" />
   </Svg>
 );
+
+export const FileText = (p: Props) => (
+  <Svg {...p}>
+    <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z" />
+    <path d="M14 2v6h6M9 13h6M9 17h6" />
+  </Svg>
+);
+
+export const Alert = (p: Props) => (
+  <Svg {...p}>
+    <path d="M12 3 2 20h20z" />
+    <path d="M12 10v4M12 18h.01" />
+  </Svg>
+);
+
+export const Check = (p: Props) => (
+  <Svg {...p}>
+    <path d="M20 6 9 17l-5-5" />
+  </Svg>
+);
+
+export const Lightbulb = (p: Props) => (
+  <Svg {...p}>
+    <path d="M9 18h6M10 22h4" />
+    <path d="M12 2a7 7 0 0 0-4 12.7V18h8v-3.3A7 7 0 0 0 12 2z" />
+  </Svg>
+);
+
+export const Repeat = (p: Props) => (
+  <Svg {...p}>
+    <path d="m17 2 4 4-4 4" />
+    <path d="M3 11V9a4 4 0 0 1 4-4h14M7 22l-4-4 4-4" />
+    <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+  </Svg>
+);
+
+export const Target = (p: Props) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="12" r="5" />
+    <circle cx="12" cy="12" r="1" />
+  </Svg>
+);
