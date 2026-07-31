@@ -124,6 +124,7 @@ Present at the root and inside each package. Turbo writes per-task logs and cach
 |---|---|---|
 | `pnpm dev` starts Vite but no native window opens | The `dev` script in `apps/desktop/package.json` is still `vite`, not `tauri dev` | Apply the scripts contract above |
 | Vite exits immediately, "Port 1420 is already in use" | Two Vite servers: turbo started one and `beforeDevCommand` started another | Ensure `dev` = `tauri dev` and `beforeDevCommand` = `pnpm vite:dev`. Do not change the port — [[stack]] pins it |
+| Same "Port 1420 is already in use", but the scripts and `beforeDevCommand` are correct | A Vite child orphaned by a previous run. Killing `tauri dev` or the app binary does **not** kill Vite — it was spawned by `beforeDevCommand` and is reparented, so `pkill -f "tauri dev"` and `pkill -f "target/debug/desktop"` both leave it holding the port | `lsof -ti:1420 \| xargs kill -9`. Check with `lsof -ti:1420` before blaming config — an empty result means the cause really is the row above |
 | `pnpm dev` recurses / spawns endlessly | `beforeDevCommand` left as `pnpm dev` while `dev` became `tauri dev` | Repoint it at `pnpm vite:dev` |
 | `turbo typecheck` prints success instantly, checks nothing | No `typecheck` script in the app; turbo skips missing scripts and exits 0 | Add the script, then re-run. Verify with `turbo typecheck --dry=json` |
 | `turbo: command not found` at the root | Installed with `--filter desktop` instead of `-Dw` | `pnpm add -Dw turbo` |
