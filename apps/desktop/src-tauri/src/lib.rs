@@ -84,6 +84,19 @@ fn migrations() -> Vec<Migration> {
         ",
             kind: MigrationKind::Up,
         },
+        // A self-transfer is ONE row, not a debit row plus a credit row: there
+        // is no transaction available (see docs/derived-balances.md), so two
+        // inserts could be left half-applied by a crash and no longer net to
+        // zero. `account_id` is the source, `to_account_id` the destination,
+        // and `direction` stays 'debit' — money does leave the source.
+        Migration {
+            version: 5,
+            description: "add_transfer_destination_to_expense",
+            sql: "
+            ALTER TABLE expense ADD COLUMN to_account_id INTEGER REFERENCES account(id);
+        ",
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

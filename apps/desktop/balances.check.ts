@@ -20,7 +20,7 @@ import {
 function schema(): string {
   const rust = readFileSync(new URL("./src-tauri/src/lib.rs", import.meta.url), "utf8");
   const sql = [...rust.matchAll(/sql: "([\s\S]*?)",\n\s*kind:/g)].map((m) => m[1]);
-  assert.equal(sql.length, 4, "expected 4 migrations in lib.rs");
+  assert.equal(sql.length, 5, "expected 5 migrations in lib.rs");
   return sql.join("\n");
 }
 
@@ -28,6 +28,7 @@ function seed() {
   const db = new DatabaseSync(":memory:");
   db.exec(schema());
   db.exec("INSERT INTO account (bank, balance) VALUES ('HDFC', 100000)"); // ₹1000
+  db.exec("INSERT INTO account (bank, balance) VALUES ('ICICI', 50000)"); // ₹500
   db.exec("INSERT INTO card (bank, name, last4) VALUES ('HDFC', 'Regalia', '0421')");
   return db;
 }
@@ -40,7 +41,7 @@ const book = (
   spentAt = "2026-07-15T00:00:00Z",
 ) =>
   db
-    .prepare(INSERT_TRANSACTION.replace(/\$\d/g, "?"))
+    .prepare(INSERT_TRANSACTION.replace(/\$\d+/g, "?"))
     .run(
       amount,
       "INR",
@@ -50,7 +51,21 @@ const book = (
       direction,
       on === "account" ? 1 : null,
       on === "card" ? 1 : null,
+      null,
     );
+
+/** Account 1 -> account 2: one row, a debit carrying a destination. */
+const transfer = (
+  db: DatabaseSync,
+  amount: number,
+  spentAt = "2026-07-15T00:00:00Z",
+) =>
+  db
+    .prepare(INSERT_TRANSACTION.replace(/\$\d+/g, "?"))
+    .run(amount, "INR", "moved", null, spentAt, "debit", 1, null, 2);
+
+const balances = (db: DatabaseSync) =>
+  Object.fromEntries(db.prepare(ACCOUNT_BALANCES).all().map((r) => [r.bank, r.balance]));
 
 test("account balance is opening + credits - debits", () => {
   const db = seed();
@@ -103,7 +118,7 @@ test("editing a transaction rewrites every field and moves the balance", () => {
   book(db, 25000, "debit", "account");
   assert.equal(db.prepare(ACCOUNT_BALANCES).get()!.balance, 75000);
 
-  db.prepare(UPDATE_TRANSACTION.replace(/\$\d/g, "?")).run(
+  db.prepare(UPDATE_TRANSACTION.replace(/\$\d+/g, "?")).run(
     9900,
     "INR",
     "corrected",
@@ -111,6 +126,7 @@ test("editing a transaction rewrites every field and moves the balance", () => {
     "2026-07-20T00:00:00Z",
     "credit",
     1,
+    null,
     null,
     1,
   );
@@ -145,4 +161,44 @@ test("migration 4 renames description to title and leaves note optional", () => 
     () => db.exec("INSERT INTO expense (amount, spent_at) VALUES (1,'2026-07-01')"),
     /NOT NULL/,
   );
+});
+
+// The whole point of the feature: the money is not gone, it is somewhere else.
+test("a transfer moves money between accounts and nets to zero", () => {
+  const db = seed();
+  assert.deepEqual(balances(db), { HDFC: 100000, ICICI: 50000 });
+
+  transfer(db, 25000);
+  assert.deepEqual(balances(db), { HDFC: 75000, ICICI: 75000 });
+
+  const total = (b: Record<string, number>) => Object.values(b).reduce((x, y) => x + y, 0);
+  assert.equal(total(balances(db)), 150000, "a transfer must not change the total");
+});
+
+test("a transfer is neither spending nor income", () => {
+  const db = seed();
+  transfer(db, 25000);
+  book(db, 4000, "debit", "account");
+
+  const rows = db.prepare(MONTH_TOTALS.replace("$1", "?")).all("2026-07");
+  assert.deepEqual(
+    Object.fromEntries(rows.map((r) => [r.direction, r.total])),
+    { debit: 4000 }, // the 25000 transfer is excluded, not counted as spend
+  );
+});
+
+test("deleting a transfer restores both accounts", () => {
+  const db = seed();
+  transfer(db, 25000);
+  db.prepare(DELETE_TRANSACTION.replace("$1", "?")).run(1);
+  assert.deepEqual(balances(db), { HDFC: 100000, ICICI: 50000 });
+});
+
+// The destination arm of the CASE has to win over `direction`, and the join has
+// to reach rows through either column. Both are easy to get wrong by half.
+test("a transfer credits the destination and debits the source, once each", () => {
+  const db = seed();
+  transfer(db, 10000);
+  transfer(db, 10000);
+  assert.deepEqual(balances(db), { HDFC: 80000, ICICI: 70000 });
 });

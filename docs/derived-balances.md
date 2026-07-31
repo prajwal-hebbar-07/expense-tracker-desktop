@@ -3,7 +3,7 @@ id: derived-balances
 type: decision
 status: active
 updated: 2026-07-31
-links: [transaction-ledger, settings-schema, persistence-sqlite]
+links: [transaction-ledger, settings-schema, persistence-sqlite, self-transfer]
 ---
 
 # Balances are derived, never stored
@@ -22,9 +22,12 @@ The alternative was to `UPDATE account SET balance = balance ± ?` alongside eac
 ## Contract
 
 ```sql
-a.balance + COALESCE(SUM(CASE WHEN e.direction = 'credit' THEN e.amount
+a.balance + COALESCE(SUM(CASE WHEN e.to_account_id = a.id THEN e.amount
+                              WHEN e.direction = 'credit' THEN e.amount
                               ELSE -e.amount END), 0) AS balance
 ```
+
+The first arm is the destination side of a self-transfer — see [[self-transfer]] for why it must stay first.
 
 `LEFT JOIN` and `COALESCE` are both load-bearing: an account with no transactions must return its opening balance, not disappear and not return `NULL`.
 

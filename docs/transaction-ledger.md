@@ -3,7 +3,7 @@ id: transaction-ledger
 type: decision
 status: active
 updated: 2026-07-31
-links: [persistence-sqlite, settings-schema, derived-balances]
+links: [persistence-sqlite, settings-schema, derived-balances, self-transfer]
 ---
 
 # Recording a transaction
@@ -23,11 +23,11 @@ Rows are **edited in place on the list and deleted behind the same two-step guar
 ## Rules for an agent working here
 
 1. **Never store a negative `amount`.** Migration 1 froze `CHECK (amount > 0)` onto the column and it cannot be dropped without a table rebuild. Direction is a word, not a sign — a `-500` insert fails at SQL, not review.
-2. **Set exactly one of `account_id` and `card_id`, never both and never neither**, because a transaction has one source and the joins in `TRANSACTIONS` `COALESCE` across the two. This is **not** enforced by a `CHECK` — see the contract below for why — so the form is the only guard.
+2. **Set exactly one of `account_id` and `card_id`, never both and never neither** (a self-transfer sets `account_id` plus `to_account_id` — see [[self-transfer]]), because a transaction has one source and the joins in `TRANSACTIONS` `COALESCE` across the two. This is **not** enforced by a `CHECK` — see the contract below for why — so the form is the only guard.
 3. **A card transaction never touches an account balance**, because paying the card bill is itself a transaction (a debit on the account, a credit on the card). Applying it at spend time double-counts.
 4. **Write `spent_at` as `${date}T00:00:00Z`** from the `<input type="date">` value, because `MONTH_TOTALS` filters on `substr(spent_at, 1, 7)` and a bare `YYYY-MM-DD` would still match but a locale-formatted date would not.
 5. **Convert with `toMinor()` and reject `null` *and* `<= 0`** before inserting — see rule 4 of [[settings-schema]].
-6. **Route every write through `toParams` in `transactionForm.tsx`**, because `INSERT_TRANSACTION` and `UPDATE_TRANSACTION` deliberately take the same eight parameters in the same order. Building either param list by hand is what lets the two drift.
+6. **Route every write through `toParams` in `transactionForm.tsx`**, because `INSERT_TRANSACTION` and `UPDATE_TRANSACTION` deliberately take the same nine parameters in the same order. Building either param list by hand is what lets the two drift.
 7. **Never soft-delete.** `DELETE_TRANSACTION` really removes the row, because balances are derived ([[derived-balances]]) — a `deleted_at` flag would have to be filtered out of every aggregate, and the one that gets missed is silently wrong.
 8. **Use `ConfirmDelete` from `apps/desktop/src/ConfirmDelete.tsx`, never `window.confirm()`** — that component's docblock explains why the native dialog silently returns `false` under wry.
 

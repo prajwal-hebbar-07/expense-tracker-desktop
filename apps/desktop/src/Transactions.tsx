@@ -22,7 +22,9 @@ type Row = {
   direction: "debit" | "credit";
   account_id: number | null;
   card_id: number | null;
+  to_account_id: number | null;
   source: string | null;
+  destination: string | null;
 };
 type Account = { id: number; bank: string };
 type Card = { id: number; bank: string; name: string | null; last4: string | null };
@@ -36,13 +38,16 @@ const day = (spentAt: string) =>
     year: "numeric",
   });
 
+// A stored transfer is a debit row with a destination, so the editor has to be
+// told it is a transfer again — nothing in `direction` says so.
 const draftOf = (r: Row): Draft => ({
-  direction: r.direction,
+  direction: r.to_account_id ? "transfer" : r.direction,
   amount: fromMinor(r.amount),
   title: r.title,
   note: r.note ?? "",
   date: r.spent_at.slice(0, 10),
   source: sourceOf(r.account_id, r.card_id),
+  to: r.to_account_id ? String(r.to_account_id) : "",
 });
 
 export default function Transactions() {
@@ -163,18 +168,25 @@ export default function Transactions() {
                       {r.title}
                       <span className="ml-2 text-sm text-muted">
                         {r.source ?? "unassigned"}
+                        {r.destination && ` → ${r.destination}`}
                       </span>
                     </span>
                     {r.note && (
                       <span className="block truncate text-sm text-muted">{r.note}</span>
                     )}
                   </span>
+                  {/* A transfer gets no sign: the money is still yours, it just
+                      sits somewhere else. */}
                   <span
                     className={`tabular-nums ${
-                      r.direction === "credit" ? "text-credit" : ""
+                      r.to_account_id
+                        ? "text-muted"
+                        : r.direction === "credit"
+                          ? "text-credit"
+                          : ""
                     }`}
                   >
-                    {r.direction === "credit" ? "+" : "−"}
+                    {r.to_account_id ? "" : r.direction === "credit" ? "+" : "−"}
                     {formatAmount(r.amount, r.currency)}
                   </span>
                   <button
