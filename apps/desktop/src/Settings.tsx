@@ -4,6 +4,7 @@ import { toMinor, fromMinor, formatAmount } from "./money";
 
 type Account = { id: number; bank: string; balance: number; currency: string };
 type Card = { id: number; bank: string; name: string | null; last4: string | null };
+type Pending = { table: "account" | "card"; id: number };
 
 const input =
   "rounded-lg border border-black/15 dark:border-white/20 px-3 py-2 text-base " +
@@ -15,11 +16,51 @@ const button =
   "shadow-[0_2px_2px_rgba(0,0,0,0.2)] hover:border-[#396cd8] active:bg-[#e8e8e8] " +
   "dark:active:bg-[#0f0f0f69] transition-[border-color] duration-[250ms]";
 const iconButton = "px-2 py-1 text-sm opacity-60 hover:opacity-100 cursor-pointer";
+const cancelButton =
+  "rounded-lg px-4 py-2 text-sm font-medium cursor-pointer bg-white text-[#0f0f0f] " +
+  "dark:bg-[#0f0f0f98] dark:text-white shadow-[0_2px_2px_rgba(0,0,0,0.2)] " +
+  "border border-transparent hover:border-[#396cd8]";
+const dangerButton =
+  "rounded-lg px-4 py-2 text-sm font-medium cursor-pointer bg-red-600 text-white " +
+  "hover:bg-red-700 active:bg-red-800 shadow-[0_2px_2px_rgba(0,0,0,0.2)]";
+
+/**
+ * Two-step delete guard. Deliberately *not* window.confirm(): wry's WKUIDelegate
+ * implements no runJavaScriptConfirmPanel, so window.confirm() returns false
+ * immediately without showing a dialog and the delete would never fire.
+ *
+ * Cancel is focused and sits left of Delete, so a stray Enter or a second click
+ * in the same spot as the first cancels rather than destroys.
+ */
+function ConfirmDelete({
+  label,
+  onCancel,
+  onConfirm,
+}: {
+  label: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="flex flex-1 flex-wrap items-center gap-3 rounded-lg bg-red-500/10 px-3 py-2">
+      <span className="flex-1 text-sm">
+        Delete <span className="font-medium">{label}</span>? This cannot be undone.
+      </span>
+      <button autoFocus className={cancelButton} onClick={onCancel}>
+        Cancel
+      </button>
+      <button className={dangerButton} onClick={onConfirm}>
+        Delete
+      </button>
+    </div>
+  );
+}
 
 export default function Settings() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [cards, setCards] = useState<Card[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState<Pending | null>(null);
 
   // Add-account form
   const [bank, setBank] = useState("");
@@ -51,6 +92,14 @@ export default function Settings() {
   useEffect(() => {
     refresh().catch((e) => setError(String(e)));
   }, []);
+
+  // Escape always backs out of a pending delete.
+  useEffect(() => {
+    if (!pending) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setPending(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pending]);
 
   // Every handler routes through this so a rejected promise surfaces in the UI
   // instead of becoming a silent unhandled rejection.
@@ -107,11 +156,19 @@ export default function Settings() {
     });
   }
 
-  const remove = (table: "account" | "card", id: number) =>
+  /** Only ever called from ConfirmDelete's second click. */
+  function confirmDelete() {
+    if (!pending) return;
+    const { table, id } = pending;
     run(async () => {
-      // `table` is a literal from this call site, never user input.
+      // `table` comes from this module's own Pending union, never user input.
       await (await db).execute(`DELETE FROM ${table} WHERE id = $1`, [id]);
+      setPending(null);
     });
+  }
+
+  const isPending = (table: Pending["table"], id: number) =>
+    pending?.table === table && pending.id === id;
 
   const total = accounts.reduce((sum, a) => sum + a.balance, 0);
 
@@ -134,10 +191,15 @@ export default function Settings() {
         <ul className="mt-4 divide-y divide-black/10 dark:divide-white/10">
           {accounts.map((a) => (
             <li key={a.id} className="flex items-center gap-3 py-3">
-              <span className="flex-1">{a.bank}</span>
-
-              {editingId === a.id ? (
+              {isPending("account", a.id) ? (
+                <ConfirmDelete
+                  label={`${a.bank} — ${formatAmount(a.balance, a.currency)}`}
+                  onCancel={() => setPending(null)}
+                  onConfirm={confirmDelete}
+                />
+              ) : editingId === a.id ? (
                 <>
+                  <span className="flex-1">{a.bank}</span>
                   <input
                     autoFocus
                     className={`${input} w-32 text-right`}
@@ -154,6 +216,7 @@ export default function Settings() {
                 </>
               ) : (
                 <>
+                  <span className="flex-1">{a.bank}</span>
                   <span className="tabular-nums">
                     {formatAmount(a.balance, a.currency)}
                   </span>
@@ -168,7 +231,10 @@ export default function Settings() {
                   </button>
                   <button
                     className={iconButton}
-                    onClick={() => remove("account", a.id)}
+                    onClick={() => {
+                      setEditingId(null);
+                      setPending({ table: "account", id: a.id });
+                    }}
                   >
                     Delete
                   </button>
@@ -211,16 +277,31 @@ export default function Settings() {
         <ul className="mt-4 divide-y divide-black/10 dark:divide-white/10">
           {cards.map((c) => (
             <li key={c.id} className="flex items-center gap-3 py-3">
-              <span className="flex-1">
-                {c.bank}
-                {c.name && <span className="opacity-70"> {c.name}</span>}
-                {c.last4 && (
-                  <span className="ml-2 opacity-50 tabular-nums">••••{c.last4}</span>
-                )}
-              </span>
-              <button className={iconButton} onClick={() => remove("card", c.id)}>
-                Delete
-              </button>
+              {isPending("card", c.id) ? (
+                <ConfirmDelete
+                  label={[c.bank, c.name, c.last4 && `••••${c.last4}`]
+                    .filter(Boolean)
+                    .join(" ")}
+                  onCancel={() => setPending(null)}
+                  onConfirm={confirmDelete}
+                />
+              ) : (
+                <>
+                  <span className="flex-1">
+                    {c.bank}
+                    {c.name && <span className="opacity-70"> {c.name}</span>}
+                    {c.last4 && (
+                      <span className="ml-2 opacity-50 tabular-nums">••••{c.last4}</span>
+                    )}
+                  </span>
+                  <button
+                    className={iconButton}
+                    onClick={() => setPending({ table: "card", id: c.id })}
+                  >
+                    Delete
+                  </button>
+                </>
+              )}
             </li>
           ))}
         </ul>
