@@ -10,7 +10,9 @@ links: [stack, repo-layout]
 
 Expenses are stored in a single SQLite file inside the macOS application data directory, reached through `tauri-plugin-sql` with the `sqlite` feature. The requirement it satisfies: data must survive app restarts, app updates, and machine reboots without the user running or backing up anything. SQLite is one file, needs no process, and is already the storage engine the OS itself uses everywhere.
 
-⚠ **Decided, not implemented.** The plugin is not in `Cargo.toml` yet and no schema exists. Every code shape below is recalled and must be checked against the plugin's docs on first use — in particular the exact database URL resolution and the migration builder signature.
+**Implemented 2026-07-31 and verified end-to-end**: the app was launched, the database was created at the resolved path, and migration 1 applied — `_sqlx_migrations` records it and `.schema` shows `expense`, `settings`, and `idx_expense_spent_at`. The shapes below were checked against `tauri-plugin-sql` `2.4.0` source, not recalled.
+
+No expense UI exists yet. The only caller today is a single `Database.load()` in `apps/desktop/src/main.tsx`, which exists precisely so the migration runs — deleting it means a fresh install never creates the schema.
 
 ## Rules for an agent working here
 
@@ -24,10 +26,11 @@ Expenses are stored in a single SQLite file inside the macOS application data di
 
 ## Contract
 
-Installation ⚠:
+Installation:
 
 ```
 pnpm --filter desktop add @tauri-apps/plugin-sql
+cd apps/desktop/src-tauri && cargo add tauri-plugin-sql --features sqlite
 ```
 
 `apps/desktop/src-tauri/Cargo.toml`:
@@ -39,25 +42,36 @@ tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 `apps/desktop/src-tauri/src/lib.rs` — registered alongside the existing opener plugin:
 
 ```rust
+use tauri_plugin_sql::{Migration, MigrationKind};
+
 tauri::Builder::default()
-    .plugin(tauri_plugin_sql::Builder::default().build())
+    .plugin(
+        tauri_plugin_sql::Builder::new()
+            .add_migrations("sqlite:expenses.db", migrations())
+            .build(),
+    )
     .plugin(tauri_plugin_opener::init())
 ```
 
-`apps/desktop/src-tauri/capabilities/default.json` — add to `permissions`:
+`Migration` is a plain struct — `version: i64`, `description: &'static str`, `sql: &'static str`, `kind: MigrationKind`. Prefer `Builder::new()` over `Builder::default()`: it prints a warning if no driver feature is enabled, which is otherwise a silent runtime failure.
+
+Note `MigrationKind::Down` variants are **parsed but discarded** — `MigrationSource::resolve` only pushes `Up`. Writing a `Down` migration and expecting a rollback path is a wasted afternoon.
+
+`apps/desktop/src-tauri/capabilities/default.json` — add **both** to `permissions`:
 
 ```json
-"sql:default"
+"sql:default",
+"sql:allow-execute"
 ```
 
-⚠ Verify whether write access needs an explicit `sql:allow-execute` entry in addition to `sql:default`; the default set may be read-only.
+`sql:default` is read-only. Confirmed by reading `permissions/default.toml` in `tauri-plugin-sql` 2.4.0: it grants exactly `allow-close`, `allow-load`, `allow-select`. Every `INSERT`/`UPDATE`/`DELETE` goes through `execute`, so without `sql:allow-execute` the app loads and reads fine and fails only on the first write — which is why this is easy to miss until there is a form.
 
 ### Database identity
 
 | Item | Value |
 |---|---|
 | Connection URL | `sqlite:expenses.db` |
-| Resolved location ⚠ | `~/Library/Application Support/com.hebbar.desktop/expenses.db` |
+| Resolved location | `~/Library/Application Support/com.hebbar.desktop/expenses.db` — confirmed on disk 2026-07-31 |
 | Identifier it derives from | `identifier` in `tauri.conf.json` — see [[stack]] rule 7 |
 
 ### Schema, migration version 1
@@ -78,7 +92,7 @@ CREATE INDEX idx_expense_spent_at ON expense (spent_at);
 
 `settings` is a separate key/value table (`key TEXT PRIMARY KEY`, `value TEXT NOT NULL`) holding only `base_url` and `model`. The Ollama API key is **not** a settings row — it lives in the macOS Keychain; see [[ollama-flow]].
 
-### Frontend usage ⚠
+### Frontend usage
 
 ```ts
 import Database from "@tauri-apps/plugin-sql";
@@ -109,6 +123,8 @@ const rows = await db.select<Expense[]>(
 | Symptom | Cause | Action |
 |---|---|---|
 | `Database.load` rejects with a permission or "not allowed" error | `sql:default` missing from `capabilities/default.json` | Add the permission and restart `pnpm tauri dev` — capabilities are compiled in, not hot-reloaded |
+| Reads work, the first `db.execute(...)` write is rejected | `sql:allow-execute` missing; `sql:default` grants select only | Add it alongside `sql:default` and restart |
+| `expenses.db` never appears on disk | Nothing called `Database.load` — the migration only runs when a connection opens | Keep the `Database.load` call in `main.tsx` |
 | Schema changes have no effect after editing a migration | That version was already applied and recorded | Add a new migration with the next version; during early dev, deleting the `.db` file is acceptable — never after real data exists |
 | Data missing after reinstall | Bundle `identifier` changed, moving the data directory | Restore the identifier; the old file is still on disk under the previous identifier |
 | `UNIQUE constraint failed` on insert | Reusing an explicit `id` instead of letting `AUTOINCREMENT` assign it | Omit `id` from the `INSERT` column list |

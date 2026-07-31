@@ -24,15 +24,17 @@ pnpm defines what a package is and installs it; turbo decides what runs. The two
 
 ## Contract
 
-Current tree (scaffolded 2026-07-31; ⚠ the two root files are **decided but not yet written**):
+Current tree, as it exists on disk (scaffolded and wired 2026-07-31):
 
 ```
 expense-tracker-desktop/
 ├── CLAUDE.md
 ├── README.md
-├── pnpm-workspace.yaml          ⚠ not created yet
-├── package.json                 ⚠ not created yet — root, private, scripts + turbo only
-├── turbo.json                   ⚠ not created yet — see [[turborepo]]
+├── .gitignore                   # node_modules, .turbo/, .DS_Store
+├── pnpm-workspace.yaml          # apps/*, packages/*, allowBuilds.esbuild
+├── package.json                 # root, private, scripts + turbo only
+├── pnpm-lock.yaml               # committed; the only lockfile in the repo
+├── turbo.json                   # see [[turborepo]]
 ├── .turbo/                      # gitignored, turbo task logs + cache metadata
 ├── docs/
 │   ├── stack.md
@@ -42,19 +44,22 @@ expense-tracker-desktop/
 └── apps/
     └── desktop/                 # name in package.json is "desktop"
         ├── package.json
+        ├── .gitignore           # scaffold's, plus .turbo/
         ├── index.html
-        ├── vite.config.ts
-        ├── tsconfig.json
+        ├── vite.config.ts       # react() + tailwindcss(), port 1420 strict
+        ├── tsconfig.json        # target ES2020 — no top-level await
         ├── tsconfig.node.json
+        ├── .vscode/
         ├── public/              # served at /, e.g. /vite.svg
         ├── src/                 # frontend — React + TS
-        │   ├── main.tsx         # ReactDOM root, mounts #root
-        │   ├── App.tsx
-        │   ├── App.css          # becomes the Tailwind entry
+        │   ├── main.tsx         # ReactDOM root + Database.load (runs migrations)
+        │   ├── App.tsx          # still the scaffold demo page
+        │   ├── App.css          # @import "tailwindcss" + disposable demo CSS
         │   ├── assets/
         │   └── vite-env.d.ts
         └── src-tauri/           # host — Rust
             ├── Cargo.toml       # crate "desktop", lib "desktop_lib"
+            ├── Cargo.lock
             ├── build.rs
             ├── tauri.conf.json
             ├── icons/
@@ -62,22 +67,28 @@ expense-tracker-desktop/
             │   └── default.json # permissions allowlist for window "main"
             └── src/
                 ├── main.rs      # calls desktop_lib::run()
-                └── lib.rs       # tauri::Builder, #[tauri::command] handlers
+                └── lib.rs       # tauri::Builder, migrations(), #[tauri::command]
 ```
 
-`pnpm-workspace.yaml` (⚠ to be created):
+`tsconfig.json` targets **ES2020**, so top-level `await` does not compile. Async work at module scope uses `.then()`/`.catch()` — see the `Database.load` call in `main.tsx`. Raising the target is a decision, not a drive-by fix.
+
+`pnpm-workspace.yaml` also carries an `allowBuilds` block. pnpm 11 blocks dependency postinstall scripts unless allow-listed, and esbuild's script links its platform-native binary — without `esbuild: true` Vite cannot build.
+
+`pnpm-workspace.yaml`:
 
 ```yaml
 packages:
   - "apps/*"
   - "packages/*"
+allowBuilds:
+  esbuild: true
 ```
 
 The `packages/*` glob is harmless while the directory does not exist, and saves editing this file later.
 
-Root `package.json` (⚠ to be created) holds `"private": true`, `"packageManager"`, pass-through scripts, and `turbo` as its single devDependency — never anything else, because a dependency at the root is invisible to the app that actually uses it. Exact contents are in [[turborepo]].
+Root `package.json` holds `"private": true`, `"packageManager"`, pass-through scripts, and `turbo` as its single devDependency — never anything else, because a dependency at the root is invisible to the app that actually uses it. Exact contents are in [[turborepo]].
 
-`turbo.json` (⚠ to be created) is likewise specified in [[turborepo]]. Do not duplicate its task definitions here; one topic, one node.
+`turbo.json` is likewise specified in [[turborepo]]. Do not duplicate its task definitions here; one topic, one node.
 
 ### Where a given change goes
 

@@ -32,7 +32,7 @@ Install:
 pnpm add -Dw turbo
 ```
 
-⚠ Version not pinned here — check the installed major before relying on the shapes below. Turbo **2.0 renamed the `pipeline` key to `tasks`**; a config using `pipeline` fails on 2.x with a schema error. Everything below assumes 2.x.
+Installed version is **2.10.7** (resolved 2026-07-31 from `^2`). Turbo **2.0 renamed the `pipeline` key to `tasks`**; a config using `pipeline` fails on 2.x with a schema error. Everything below assumes 2.x and is confirmed working on 2.10.7.
 
 `turbo.json` at the repo root:
 
@@ -131,3 +131,4 @@ Present at the root and inside each package. Turbo writes per-task logs and cach
 | Schema error mentioning `pipeline` | `turbo.json` written for turbo 1.x | Rename the key to `tasks` (2.0+) |
 | Tasks behave inconsistently between runs, stale results | Turbo daemon holding bad state | `turbo daemon stop`, re-run |
 | Turbo reports a cache miss on every run | A non-deterministic file inside the task's inputs (a log, `.DS_Store`, a timestamped artifact) | Inspect with `turbo build --dry=json` and narrow `inputs` |
+| `pnpm dev` redirected to a file produces an empty log while the build is plainly running | Turbo buffers child output when stdout is not a TTY; a persistent task may flush nothing until it exits | Do not conclude the build is stuck. Check `ps` for `cargo`/`rustc`, or run `pnpm --filter desktop dev` to bypass turbo and get unbuffered output |

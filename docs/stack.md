@@ -10,7 +10,7 @@ links: [repo-layout, persistence-sqlite, ollama-flow, turborepo]
 
 The app is a **Tauri v2** desktop bundle: a Rust host process owning a native macOS window, a WebView rendering a **React 19 + TypeScript + Vite 7** frontend, and **SQLite** on disk for storage. It installs as a `.app` and runs by double-clicking. There is no backend server, no daemon to start, and no network dependency for core expense tracking — the only outbound call is the AI feature described in [[ollama-flow]].
 
-Chosen 2026-07-31, before any application code existed. The scaffold in `apps/desktop/` is the unmodified `create-tauri-app` output; Tailwind and the SQL plugin are **decided but not yet installed** — see the contracts below and in [[persistence-sqlite]].
+Chosen 2026-07-31, before any application code existed, and **scaffolded the same day**. `apps/desktop/` is `create-tauri-app` output with four deliberate changes: the dev/build scripts point at Tauri rather than Vite (see [[turborepo]]), Tailwind v4 is wired into `vite.config.ts`, `tauri-plugin-sql` is registered with migration 1, and `main.tsx` opens the database at start. The demo greeting page is untouched — no expense UI exists yet.
 
 ## Rules for an agent working here
 
@@ -35,10 +35,11 @@ Versions as scaffolded (`apps/desktop/package.json`, `apps/desktop/src-tauri/Car
 | Bundler | Vite | `^7.0.4` |
 | Vite plugin | `@vitejs/plugin-react` | `^4.6.0` |
 | Package manager | pnpm | `11.11.0` |
-| Task orchestrator | Turborepo | ⚠ `^2` — not installed yet, see [[turborepo]] |
+| Task orchestrator | Turborepo | `^2.10.7`, see [[turborepo]] |
 | Node | node | `v24.18.0` |
-| Storage | SQLite via `tauri-plugin-sql` | ⚠ not installed yet |
-| Styling | Tailwind CSS | ⚠ not installed yet |
+| Rust toolchain | rustc | `1.97.1` |
+| Storage | SQLite via `tauri-plugin-sql` | `2.4.0` (crate), `@tauri-apps/plugin-sql` `^2.4.0` (JS) |
+| Styling | Tailwind CSS | `^4.3.3` (`tailwindcss` + `@tailwindcss/vite`) |
 
 Fixed values already committed by the scaffold:
 
@@ -49,7 +50,7 @@ Fixed values already committed by the scaffold:
 
 ### Tailwind installation contract
 
-⚠ Recalled, not yet executed — verify against the Tailwind v4 docs before relying on it. Tailwind v4 dropped `tailwind.config.js` and the PostCSS step in favour of a Vite plugin.
+Executed 2026-07-31 and working. Tailwind v4 dropped `tailwind.config.js` and the PostCSS step in favour of a Vite plugin.
 
 ```
 pnpm --filter desktop add -D tailwindcss @tailwindcss/vite
@@ -62,11 +63,13 @@ import tailwindcss from "@tailwindcss/vite";
 // plugins: [react(), tailwindcss()]
 ```
 
-In the global stylesheet (`apps/desktop/src/App.css`), replacing the scaffold's CSS:
+In the global stylesheet (`apps/desktop/src/App.css`), which `App.tsx` imports:
 
 ```css
 @import "tailwindcss";
 ```
+
+This was **prepended** to the scaffold's demo-page CSS rather than replacing it, so the greeting page still renders correctly while Tailwind is live. That CSS is marked in-file as disposable — delete it with the demo page when the first real screen lands, and do not extend it.
 
 There is **no** `tailwind.config.js` and **no** `content: []` array in v4 — do not create one. Theme customisation goes in an `@theme { }` block in the same CSS file.
 
@@ -82,8 +85,8 @@ There is **no** `tailwind.config.js` and **no** `content: []` array in v4 — do
 
 | Symptom | Cause | Action |
 |---|---|---|
-| `pnpm tauri dev` fails with "Rust not found" / `cargo: command not found` | Rust toolchain is not installed on this machine (confirmed absent 2026-07-31) | Install via `rustup` from https://rustup.rs, reopen the shell, re-run |
-| `create-tauri-app` prints a "missing dependencies: Rust" box | Same as above; it still writes the scaffold, so files exist despite the warning | Install Rust; no need to re-scaffold |
+| `pnpm tauri dev` fails with "Rust not found" / `cargo: command not found` | Rust missing from `PATH` (it **is** installed — `rustc 1.97.1` at `~/.cargo/bin`, verified 2026-07-31) | Source `~/.cargo/env` or reopen the shell; install via https://rustup.rs only if genuinely absent |
+| `pnpm install` warns `ERR_PNPM_IGNORED_BUILDS: esbuild` | pnpm blocks postinstall scripts until allow-listed; esbuild's links its native binary | `allowBuilds.esbuild: true` in `pnpm-workspace.yaml` — already set; re-run `pnpm install` |
 | Built `.app` shows "cannot be opened because the developer cannot be verified" | Bundle is unsigned; macOS Gatekeeper blocks first launch | Right-click → Open once for personal use. Distribution to others needs an Apple Developer cert + notarization |
 | Vite exits immediately on `pnpm dev` | Port 1420 already bound and `strictPort: true` | Kill the other process; do not change the port — `devUrl` in `tauri.conf.json` is pinned to 1420 |
 | Tailwind classes render as plain unstyled text | The `@tailwindcss/vite` plugin is missing from `vite.config.ts`, or the CSS file with `@import "tailwindcss";` is not imported by `main.tsx` | Check both; v4 needs no config file, so an absent `tailwind.config.js` is not the cause |
