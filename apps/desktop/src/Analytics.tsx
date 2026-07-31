@@ -1,6 +1,7 @@
 import { formatAmount, formatAmountRound } from "./money";
 import { card, errorBox, h1, h2, pageWide } from "./ui";
 import Stat from "./Stat";
+import { change } from "./delta";
 import PeriodPicker, { usePeriod } from "./PeriodPicker";
 import { ArrowsUpDown, Calendar, TrendUp, Wallet } from "./icons";
 import {
@@ -14,14 +15,6 @@ import {
   totals,
   within,
 } from "./analyticsFeed";
-
-/** "+12% vs previous" — or nothing, when there is no previous figure to divide
- *  by. A percentage against zero is Infinity, which is not a comparison. */
-function delta(now: number, before: number): string | undefined {
-  if (!before) return undefined;
-  const pct = Math.round(((now - before) / before) * 100);
-  return `${pct > 0 ? "+" : ""}${pct}% vs prev`;
-}
 
 /** Vertical bars, one series, so no legend — the card title names it. Heights
  *  are percentages of the tallest bar; the axis is the ₹ label on the left. */
@@ -161,14 +154,14 @@ export default function Analytics() {
             <Stat
               label="Spent"
               value={formatAmountRound(now.spent)}
-              hint={delta(now.spent, before.spent)}
+              delta={{ pct: change(now.spent, before.spent), goal: "lower" }}
               icon={ArrowsUpDown}
               tint="text-accent"
             />
             <Stat
               label="Received"
               value={formatAmountRound(now.received)}
-              hint={delta(now.received, before.received)}
+              delta={{ pct: change(now.received, before.received), goal: "higher" }}
               icon={Wallet}
               tint="text-credit"
             />
@@ -176,6 +169,7 @@ export default function Analytics() {
               label="Net"
               value={formatAmountRound(now.net)}
               hint={now.net >= 0 ? "saved" : "overspent"}
+              delta={{ pct: change(now.net, before.net), goal: "higher" }}
               icon={TrendUp}
               tint={now.net >= 0 ? "text-credit" : "text-danger"}
             />
@@ -183,6 +177,7 @@ export default function Analytics() {
               label="Per day"
               value={formatAmountRound(now.perDay)}
               hint={`over ${daysBetween(win.from, win.to)} days`}
+              delta={{ pct: change(now.perDay, before.perDay), goal: "lower" }}
               icon={Calendar}
               tint="text-violet"
             />
