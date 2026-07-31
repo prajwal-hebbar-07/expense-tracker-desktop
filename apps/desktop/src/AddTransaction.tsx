@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { db } from "./db";
 import { formatAmount } from "./money";
-import { button } from "./ui";
+import { button, card, errorBox, h1, h2, noticeBox, page } from "./ui";
 import { Draft, Fields, cardLabel, emptyDraft, toParams, today } from "./transactionForm";
 import { ACCOUNT_BALANCES, CARD_OUTSTANDING, MONTH_TOTALS, INSERT_TRANSACTION } from "./queries";
 
@@ -16,10 +16,10 @@ type Outstanding = {
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-lg bg-black/5 px-4 py-3 dark:bg-white/5">
-      <p className="text-xs uppercase tracking-wide opacity-60">{label}</p>
-      <p className="mt-1 text-xl font-semibold tabular-nums">{value}</p>
-      {hint && <p className="text-xs opacity-50">{hint}</p>}
+    <div className="rounded-2xl border border-line bg-surface px-4 py-3">
+      <p className="text-xs tracking-wide text-muted uppercase">{label}</p>
+      <p className="mt-1 truncate text-xl font-semibold tabular-nums">{value}</p>
+      {hint && <p className="truncate text-xs text-muted">{hint}</p>}
     </div>
   );
 }
@@ -75,46 +75,24 @@ export default function AddTransaction() {
   const owed = cards.reduce((s, c) => s + c.outstanding, 0);
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-6 py-10 text-left">
-      <h1 className="text-3xl font-semibold">Add a transaction</h1>
+    <div className={page}>
+      <h1 className={h1}>Overview</h1>
 
       {error && (
-        <p
-          role="alert"
-          className="mt-4 rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300"
-        >
+        <p role="alert" className={errorBox}>
           {error}
         </p>
       )}
 
       {saved && !error && (
-        <p
-          role="status"
-          className="mt-4 rounded-lg bg-green-500/10 px-4 py-3 text-sm text-green-700 dark:text-green-300"
-        >
+        <p role="status" className={noticeBox}>
           Saved {saved}. See it under Transactions.
         </p>
       )}
 
-      <form onSubmit={submit} className="mt-6 flex flex-wrap gap-2">
-        <Fields
-          draft={draft}
-          onChange={setDraft}
-          accounts={balances.map((a) => ({ id: a.id, label: a.bank }))}
-          cards={cards.map((c) => ({ id: c.id, label: cardLabel(c) }))}
-        />
-        <button type="submit" className={button}>
-          Add
-        </button>
-      </form>
-
-      {balances.length === 0 && cards.length === 0 && (
-        <p className="mt-3 text-sm opacity-60">
-          Add a bank account or a credit card in Settings first.
-        </p>
-      )}
-
-      <div className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {/* Standing figures first: they are what the window is usually left open
+          on, and the form below is entered into a few times a day. */}
+      <div className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
         <Stat label="In accounts" value={formatAmount(inAccounts)} />
         <Stat label="Card outstanding" value={formatAmount(owed)} />
         <Stat label="Net" value={formatAmount(inAccounts - owed)} hint="accounts − cards" />
@@ -124,6 +102,28 @@ export default function AddTransaction() {
           hint={`spent · ${formatAmount(month.credit)} in`}
         />
       </div>
+
+      <section className={`mt-8 ${card}`}>
+        <h2 className={h2}>Add a transaction</h2>
+
+        <form onSubmit={submit} className="mt-4 flex flex-wrap gap-2">
+          <Fields
+            draft={draft}
+            onChange={setDraft}
+            accounts={balances.map((a) => ({ id: a.id, label: a.bank }))}
+            cards={cards.map((c) => ({ id: c.id, label: cardLabel(c) }))}
+          />
+          <button type="submit" className={`${button} ml-auto`}>
+            Add
+          </button>
+        </form>
+
+        {balances.length === 0 && cards.length === 0 && (
+          <p className="mt-3 text-sm text-muted">
+            Add a bank account or a credit card in Settings first.
+          </p>
+        )}
+      </section>
     </div>
   );
 }

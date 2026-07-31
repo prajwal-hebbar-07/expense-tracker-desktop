@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { db } from "./db";
 import { toMinor, fromMinor, formatAmount } from "./money";
-import { input, button, iconButton } from "./ui";
+import { input, button, iconButton, card, errorBox, h1, h2, page } from "./ui";
 import ConfirmDelete from "./ConfirmDelete";
 
 type Account = { id: number; bank: string; balance: number; currency: string };
@@ -125,25 +125,22 @@ export default function Settings() {
   const total = accounts.reduce((sum, a) => sum + a.balance, 0);
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-6 py-10 text-left">
-      <h1 className="text-3xl font-semibold">Settings</h1>
+    <div className={page}>
+      <h1 className={h1}>Settings</h1>
 
       {error && (
-        <p
-          role="alert"
-          className="mt-4 rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300"
-        >
+        <p role="alert" className={errorBox}>
           {error}
         </p>
       )}
 
-      <section className="mt-10">
-        <h2 className="text-xl font-medium">Bank accounts</h2>
-        <p className="mt-1 text-sm opacity-60">
+      <section className={`mt-8 ${card}`}>
+        <h2 className={h2}>Bank accounts</h2>
+        <p className="mt-1 text-sm text-muted">
           Opening balances. Transactions adjust them — the live figure is on that screen.
         </p>
 
-        <ul className="mt-4 divide-y divide-black/10 dark:divide-white/10">
+        <ul className="mt-4 divide-y divide-line">
           {accounts.map((a) => (
             <li key={a.id} className="flex items-center gap-3 py-3">
               {isPending("account", a.id) ? (
@@ -200,7 +197,7 @@ export default function Settings() {
         </ul>
 
         {accounts.length > 0 && (
-          <p className="flex justify-between border-t border-black/20 py-3 font-medium dark:border-white/20">
+          <p className="flex justify-between border-t border-line py-3 font-medium">
             <span>Total opening</span>
             <span className="tabular-nums">{formatAmount(total)}</span>
           </p>
@@ -226,10 +223,10 @@ export default function Settings() {
         </form>
       </section>
 
-      <section className="mt-12">
-        <h2 className="text-xl font-medium">Credit cards</h2>
+      <section className={`mt-6 ${card}`}>
+        <h2 className={h2}>Credit cards</h2>
 
-        <ul className="mt-4 divide-y divide-black/10 dark:divide-white/10">
+        <ul className="mt-4 divide-y divide-line">
           {cards.map((c) => (
             <li key={c.id} className="flex items-center gap-3 py-3">
               {isPending("card", c.id) ? (
@@ -244,9 +241,9 @@ export default function Settings() {
                 <>
                   <span className="flex-1">
                     {c.bank}
-                    {c.name && <span className="opacity-70"> {c.name}</span>}
+                    {c.name && <span className="text-muted"> {c.name}</span>}
                     {c.last4 && (
-                      <span className="ml-2 opacity-50 tabular-nums">••••{c.last4}</span>
+                      <span className="ml-2 text-muted tabular-nums">••••{c.last4}</span>
                     )}
                   </span>
                   <button

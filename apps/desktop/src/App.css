@@ -1,5 +1,52 @@
 @import "tailwindcss";
 
-@theme {
-  --font-sans: Inter, Avenir, Helvetica, Arial, sans-serif;
+/* One palette, defined once as plain CSS variables and swapped by a media
+   query — so a colour is written twice here instead of as a `dark:` twin on
+   every element. `color-scheme` makes the native date picker, select popup and
+   scrollbars follow along without any CSS of ours. */
+:root {
+  color-scheme: light dark;
+  --bg: #f4f3f0;
+  --surface: #fffefc;
+  --ink: #1e2024;
+  --muted: #6c7079;
+  --line: #e4e2dd;
+  --accent: #4a6fa5;
+  --accent-ink: #ffffff;
+  --credit: #2f7d5a;
+  --danger: #b3261e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181c;
+    --surface: #1d2026;
+    --ink: #e8e6e3;
+    --muted: #969ba3;
+    --line: #2c3037;
+    --accent: #8fb2dd;
+    --accent-ink: #16181c;
+    --credit: #6fcf9a;
+    --danger: #f0867d;
+  }
+}
+
+/* `inline` so the utilities resolve to var(--bg) at use time, which is what
+   lets the media query above re-theme already-generated classes. */
+@theme inline {
+  --font-sans:
+    ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-credit: var(--credit);
+  --color-danger: var(--danger);
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
 }

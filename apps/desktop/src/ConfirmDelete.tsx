@@ -18,7 +18,7 @@ export default function ConfirmDelete({
   onConfirm: () => void;
 }) {
   return (
-    <div className="flex flex-1 flex-wrap items-center gap-3 rounded-lg bg-red-500/10 px-3 py-2">
+    <div className="flex flex-1 flex-wrap items-center gap-3 rounded-xl border border-danger/25 bg-danger/10 px-3 py-2">
       <span className="flex-1 text-sm">
         Delete <span className="font-medium">{label}</span>? This cannot be undone.
       </span>

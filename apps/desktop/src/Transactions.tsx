@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { db } from "./db";
 import { fromMinor, formatAmount } from "./money";
-import { button, iconButton, cancelButton } from "./ui";
+import { button, iconButton, cancelButton, card, errorBox, h1, page } from "./ui";
 import ConfirmDelete from "./ConfirmDelete";
 import { Draft, Fields, cardLabel, sourceOf, toParams } from "./transactionForm";
 import {
@@ -113,30 +113,27 @@ export default function Transactions() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-6 py-10 text-left">
-      <h1 className="text-3xl font-semibold">Transactions</h1>
+    <div className={page}>
+      <h1 className={h1}>Transactions</h1>
 
       {error && (
-        <p
-          role="alert"
-          className="mt-4 rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300"
-        >
+        <p role="alert" className={errorBox}>
           {error}
         </p>
       )}
 
       {rows.length === 0 ? (
-        <p className="mt-6 text-sm opacity-60">
-          Nothing recorded yet. Add one from the Add tab.
+        <p className={`mt-6 ${card} text-sm text-muted`}>
+          Nothing recorded yet. Add one from the Overview tab.
         </p>
       ) : (
-        <ul className="mt-6 divide-y divide-black/10 dark:divide-white/10">
+        <ul className={`mt-6 divide-y divide-line ${card} py-1 sm:py-2`}>
           {rows.map((r, i) => (
             <li key={r.id}>
               {/* One heading per date, since the query is already sorted by it. */}
               {(i === 0 ||
                 rows[i - 1].spent_at.slice(0, 10) !== r.spent_at.slice(0, 10)) && (
-                <p className="pt-5 pb-1 text-xs uppercase tracking-wide opacity-50">
+                <p className="pt-5 pb-1 text-xs tracking-wide text-muted uppercase">
                   {day(r.spent_at)}
                 </p>
               )}
@@ -161,16 +158,20 @@ export default function Transactions() {
                 </div>
               ) : (
                 <div className="flex items-center gap-3 py-3">
-                  <span className="flex-1">
-                    {r.title}
-                    <span className="ml-2 text-sm opacity-50">
-                      {r.source ?? "unassigned"}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">
+                      {r.title}
+                      <span className="ml-2 text-sm text-muted">
+                        {r.source ?? "unassigned"}
+                      </span>
                     </span>
-                    {r.note && <span className="block text-sm opacity-60">{r.note}</span>}
+                    {r.note && (
+                      <span className="block truncate text-sm text-muted">{r.note}</span>
+                    )}
                   </span>
                   <span
                     className={`tabular-nums ${
-                      r.direction === "credit" ? "text-green-600 dark:text-green-400" : ""
+                      r.direction === "credit" ? "text-credit" : ""
                     }`}
                   >
                     {r.direction === "credit" ? "+" : "−"}
