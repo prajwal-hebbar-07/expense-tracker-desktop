@@ -34,17 +34,20 @@ export const MONTH_TOTALS = `
   WHERE substr(spent_at, 1, 7) = $1
   GROUP BY direction`;
 
-export const RECENT = `
-  SELECT e.id, e.amount, e.currency, e.description, e.category, e.spent_at, e.direction,
+export const TRANSACTIONS = `
+  SELECT e.id, e.amount, e.currency, e.title, e.note, e.spent_at, e.direction,
          COALESCE(a.bank, c.bank || COALESCE(' ' || c.name, '')) AS source
   FROM expense e
   LEFT JOIN account a ON a.id = e.account_id
   LEFT JOIN card c ON c.id = e.card_id
   ORDER BY e.spent_at DESC, e.id DESC
-  LIMIT 25`;
+  LIMIT 200`;
 
+// `category` is still NOT NULL with no default from migration 1, and the form
+// no longer asks for one, so every new row gets ''. Categorising is a separate
+// feature; when it lands it backfills the empty ones.
+// ponytail: '' as "uncategorised"; a real default or a nullable column needs a
+// table rebuild, worth it only once something reads the column.
 export const INSERT_TRANSACTION = `
-  INSERT INTO expense (amount, currency, description, category, spent_at, direction, account_id, card_id)
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`;
-
-export const CATEGORIES = `SELECT DISTINCT category FROM expense ORDER BY category`;
+  INSERT INTO expense (amount, currency, title, note, category, spent_at, direction, account_id, card_id)
+  VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8)`;

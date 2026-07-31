@@ -70,6 +70,20 @@ fn migrations() -> Vec<Migration> {
         ",
             kind: MigrationKind::Up,
         },
+        // The one mandatory text field is a title, not a description, so the
+        // column is renamed to match; `note` is the optional "why". RENAME
+        // COLUMN keeps the data, unlike adding a column and abandoning the old
+        // one, which would leave a NOT NULL column every INSERT still has to
+        // fill. `category` is left as-is — see the note on it in lib.rs callers.
+        Migration {
+            version: 4,
+            description: "split_expense_description_into_title_and_note",
+            sql: "
+            ALTER TABLE expense RENAME COLUMN description TO title;
+            ALTER TABLE expense ADD COLUMN note TEXT;
+        ",
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

@@ -1,13 +1,16 @@
 import { useState } from "react";
 import Settings from "./Settings";
+import AddTransaction from "./AddTransaction";
 import Transactions from "./Transactions";
 import "./App.css";
 
-const tabs = { transactions: Transactions, settings: Settings };
+// Switching tabs remounts the page, which is what makes a freshly added
+// transaction show up on the Transactions list without any shared state.
+const tabs = { add: AddTransaction, transactions: Transactions, settings: Settings };
 type Tab = keyof typeof tabs;
 
 function App() {
-  const [tab, setTab] = useState<Tab>("transactions");
+  const [tab, setTab] = useState<Tab>("add");
   const Page = tabs[tab];
 
   return (

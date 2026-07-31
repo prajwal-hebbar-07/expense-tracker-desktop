@@ -18,7 +18,7 @@ import {
 function schema(): string {
   const rust = readFileSync(new URL("./src-tauri/src/lib.rs", import.meta.url), "utf8");
   const sql = [...rust.matchAll(/sql: "([\s\S]*?)",\n\s*kind:/g)].map((m) => m[1]);
-  assert.equal(sql.length, 3, "expected 3 migrations in lib.rs");
+  assert.equal(sql.length, 4, "expected 4 migrations in lib.rs");
   return sql.join("\n");
 }
 
@@ -43,7 +43,7 @@ const book = (
       amount,
       "INR",
       "x",
-      "food",
+      null,
       spentAt,
       direction,
       on === "account" ? 1 : null,
@@ -88,7 +88,20 @@ test("direction is constrained and defaults to debit", () => {
   const db = seed();
   assert.throws(() => book(db, 100, "sideways", "account"), /CHECK constraint/);
   db.exec(
-    "INSERT INTO expense (amount, description, category, spent_at) VALUES (100,'legacy','food','2026-07-01T00:00:00Z')",
+    "INSERT INTO expense (amount, title, category, spent_at) VALUES (100,'legacy','food','2026-07-01T00:00:00Z')",
   );
   assert.equal(db.prepare("SELECT direction FROM expense").get()!.direction, "debit");
+});
+
+test("migration 4 renames description to title and leaves note optional", () => {
+  const db = seed();
+  book(db, 100, "debit", "account");
+  const row = db.prepare("SELECT title, note, category FROM expense").get()!;
+  assert.equal(row.title, "x");
+  assert.equal(row.note, null); // an omitted note is NULL, never ''
+  assert.equal(row.category, ""); // the form no longer collects one
+  assert.throws(
+    () => db.exec("INSERT INTO expense (amount, spent_at) VALUES (1,'2026-07-01')"),
+    /NOT NULL/,
+  );
 });

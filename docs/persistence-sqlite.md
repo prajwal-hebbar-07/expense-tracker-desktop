@@ -101,6 +101,7 @@ CREATE INDEX idx_expense_spent_at ON expense (spent_at);
 | 1 | `create_expense_table` | `expense`, `idx_expense_spent_at`, `settings` |
 | 2 | `create_account_and_card_tables` | `account`, `card` — see [[settings-schema]] |
 | 3 | `add_direction_and_source_to_expense` | `expense.direction`, `expense.account_id`, `expense.card_id` — see [[transaction-ledger]] |
+| 4 | `split_expense_description_into_title_and_note` | renames `expense.description` to `title`, adds `expense.note` — see [[transaction-ledger]] |
 
 ⚠ Migration 1 timestamps with `datetime('now')` (no `T`, no `Z`), which contradicts rule 4. It has shipped and must not be edited; migration 2 onward uses `strftime('%Y-%m-%dT%H:%M:%SZ','now')`. [[settings-schema]] documents the split.
 
@@ -110,9 +111,11 @@ CREATE INDEX idx_expense_spent_at ON expense (spent_at);
 import Database from "@tauri-apps/plugin-sql";
 
 const db = await Database.load("sqlite:expenses.db");
+// The real INSERT lives in `apps/desktop/src/queries.ts` — see [[transaction-ledger]]
+// for the current column list; `description` was renamed to `title` in migration 4.
 await db.execute(
-  "INSERT INTO expense (amount, currency, description, category, spent_at) VALUES ($1, $2, $3, $4, $5)",
-  [amountMinor, "INR", description, category, spentAtIso],
+  "INSERT INTO expense (amount, currency, title, spent_at, category) VALUES ($1, $2, $3, $4, '')",
+  [amountMinor, "INR", title, spentAtIso],
 );
 const rows = await db.select<Expense[]>(
   "SELECT * FROM expense ORDER BY spent_at DESC LIMIT $1",
