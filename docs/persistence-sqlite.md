@@ -3,7 +3,7 @@ id: persistence-sqlite
 type: decision
 status: active
 updated: 2026-07-31
-links: [stack, repo-layout]
+links: [stack, repo-layout, settings-schema]
 ---
 
 # Persistence: SQLite via tauri-plugin-sql
@@ -91,6 +91,17 @@ CREATE INDEX idx_expense_spent_at ON expense (spent_at);
 ```
 
 `settings` is a separate key/value table (`key TEXT PRIMARY KEY`, `value TEXT NOT NULL`) holding only `base_url` and `model`. The Ollama API key is **not** a settings row — it lives in the macOS Keychain; see [[ollama-flow]].
+
+**Nothing else belongs in `settings`.** Despite the name, it is not where the Settings *screen* stores its data: bank accounts and credit cards are entity lists with their own `account` and `card` tables, added by migration 2. See [[settings-schema]]. A JSON array stuffed into a `value` column is the anti-pattern that node exists to prevent.
+
+### Migration versions applied
+
+| Version | Description | Adds |
+|---|---|---|
+| 1 | `create_expense_table` | `expense`, `idx_expense_spent_at`, `settings` |
+| 2 | `create_account_and_card_tables` | `account`, `card` — see [[settings-schema]] |
+
+⚠ Migration 1 timestamps with `datetime('now')` (no `T`, no `Z`), which contradicts rule 4. It has shipped and must not be edited; migration 2 onward uses `strftime('%Y-%m-%dT%H:%M:%SZ','now')`. [[settings-schema]] documents the split.
 
 ### Frontend usage
 
