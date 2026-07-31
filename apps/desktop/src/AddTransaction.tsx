@@ -1,8 +1,9 @@
-import { ComponentType, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { db } from "./db";
 import { formatAmount } from "./money";
 import { button, card, errorBox, h1, h2, noticeBox, page } from "./ui";
 import { ArrowsUpDown, Bank, Calendar, Card, Info } from "./icons";
+import Stat from "./Stat";
 import type { Go } from "./App";
 import { Draft, Fields, cardLabel, emptyDraft, toParams, today } from "./transactionForm";
 import { ACCOUNT_BALANCES, CARD_OUTSTANDING, MONTH_TOTALS, INSERT_TRANSACTION } from "./queries";
@@ -15,33 +16,6 @@ type Outstanding = {
   last4: string | null;
   outstanding: number;
 };
-
-function Stat({
-  label,
-  value,
-  hint,
-  icon: Icon,
-  tint,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  icon: ComponentType<{ className?: string }>;
-  tint: string;
-}) {
-  return (
-    <div className="flex items-center gap-4 rounded-2xl border border-line bg-surface px-4 py-4">
-      <span className={`grid size-11 shrink-0 place-items-center rounded-full bg-ink/5 ${tint}`}>
-        <Icon />
-      </span>
-      <div className="min-w-0">
-        <p className="text-xs tracking-wide text-muted uppercase">{label}</p>
-        <p className="truncate text-xl font-semibold tabular-nums">{value}</p>
-        {hint && <p className="truncate text-xs text-muted">{hint}</p>}
-      </div>
-    </div>
-  );
-}
 
 export default function AddTransaction({ go }: { go: Go }) {
   const [balances, setBalances] = useState<Balance[]>([]);

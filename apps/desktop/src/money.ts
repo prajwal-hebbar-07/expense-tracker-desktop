@@ -31,3 +31,13 @@ export function formatAmount(paise: number, currency = "INR"): string {
     minimumFractionDigits: 2,
   }).format(paise / 100);
 }
+
+/** Display helper for summary tiles and axes: "124550" -> "₹1,246". Paise on a
+ *  headline figure is noise, and the exact string overflows a narrow tile. */
+export function formatAmountRound(paise: number, currency = "INR"): string {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(paise / 100);
+}

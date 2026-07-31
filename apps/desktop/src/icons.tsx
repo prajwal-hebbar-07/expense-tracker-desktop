@@ -87,3 +87,17 @@ export const ChevronDown = (p: Props) => (
     <path d="m6 9 6 6 6-6" />
   </Svg>
 );
+
+export const TrendUp = (p: Props) => (
+  <Svg {...p}>
+    <path d="m3 17 6-6 4 4 8-8" />
+    <path d="M15 7h6v6" />
+  </Svg>
+);
+
+export const BarChart = (p: Props) => (
+  <Svg {...p}>
+    <path d="M3 3v16a2 2 0 0 0 2 2h16" />
+    <path d="M8 17V9M13 17V5M18 17v-5" />
+  </Svg>
+);

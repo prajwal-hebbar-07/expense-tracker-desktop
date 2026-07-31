@@ -4,6 +4,9 @@
 
 /** Page shell: one column, centred, breathing room that grows with the window. */
 export const page = "mx-auto w-full max-w-3xl px-5 py-8 sm:px-8 sm:py-12";
+/** Dashboard width. Four summary tiles and a bar chart need more room than a
+ *  form does; at max-w-3xl the tiles truncate their own figures. */
+export const pageWide = "mx-auto w-full max-w-5xl px-5 py-8 sm:px-8 sm:py-12";
 export const h1 = "text-2xl font-semibold tracking-tight sm:text-3xl";
 export const h2 = "text-base font-semibold tracking-tight";
 /** Grouping surface. Sections read as separate objects instead of one long page. */

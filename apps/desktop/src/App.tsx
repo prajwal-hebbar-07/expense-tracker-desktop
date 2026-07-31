@@ -2,10 +2,11 @@ import { ComponentType, useState } from "react";
 import Settings from "./Settings";
 import AddTransaction from "./AddTransaction";
 import Transactions from "./Transactions";
-import { Home, List, Sliders, Wallet } from "./icons";
+import Analytics from "./Analytics";
+import { BarChart, Home, List, Sliders, Wallet } from "./icons";
 import "./App.css";
 
-export type Tab = "overview" | "transactions" | "settings";
+export type Tab = "overview" | "transactions" | "analytics" | "settings";
 /** Lets a screen send the user somewhere else — the Settings link in the empty
  *  state of the add form is the only caller so far. */
 export type Go = (tab: Tab) => void;
@@ -20,6 +21,7 @@ const tabs: Record<
 > = {
   overview: { page: AddTransaction, icon: Home },
   transactions: { page: Transactions, icon: List },
+  analytics: { page: Analytics, icon: BarChart },
   settings: { page: Settings, icon: Sliders },
 };
 

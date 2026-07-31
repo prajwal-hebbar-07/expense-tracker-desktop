@@ -17,6 +17,10 @@
   --credit: #15803d;
   --violet: #7c3aed;
   --danger: #b3261e;
+  /* Second categorical hue for charts. Blue+amber is the pair that clears
+     CVD separation, the normal-vision floor and 3:1 on both surfaces —
+     blue+violet fails protanopia (dE 5.7) and must not be used for series. */
+  --series-b: #d97706;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -32,6 +36,7 @@
     --credit: #4ade80;
     --violet: #a78bfa;
     --danger: #f0867d;
+    --series-b: #d97706;
   }
 }
 
@@ -44,6 +49,7 @@
   --color-rail: var(--rail);
   --color-surface: var(--surface);
   --color-violet: var(--violet);
+  --color-series-b: var(--series-b);
   --color-ink: var(--ink);
   --color-muted: var(--muted);
   --color-line: var(--line);
