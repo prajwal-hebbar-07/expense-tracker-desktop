@@ -63,13 +63,19 @@ import tailwindcss from "@tailwindcss/vite";
 // plugins: [react(), tailwindcss()]
 ```
 
-In the global stylesheet (`apps/desktop/src/App.css`), which `App.tsx` imports:
+In the global stylesheet (`apps/desktop/src/App.css`), which `App.tsx` imports. This **replaces** the scaffold's CSS — the file is now these five lines and nothing else:
 
 ```css
 @import "tailwindcss";
+
+@theme {
+  --font-sans: Inter, Avenir, Helvetica, Arial, sans-serif;
+}
 ```
 
-This was **prepended** to the scaffold's demo-page CSS rather than replacing it, so the greeting page still renders correctly while Tailwind is live. That CSS is marked in-file as disposable — delete it with the demo page when the first real screen lands, and do not extend it.
+The scaffold's 116 lines of demo CSS were deleted and the demo page restyled with utility classes in `App.tsx`. Keeping them would have violated rule 4, and not harmlessly: they included bare element selectors (`a`, `h1`, `input`, `button`) plus a `:root` block, so they styled every future screen, and their `@media (prefers-color-scheme: dark)` block competed with Tailwind's own `dark:` variant.
+
+`@theme` is the sanctioned place for theme values in v4 — it defines `--font-sans`, which `.font-sans` then consumes. It is not an escape hatch for arbitrary rules.
 
 There is **no** `tailwind.config.js` and **no** `content: []` array in v4 — do not create one. Theme customisation goes in an `@theme { }` block in the same CSS file.
 
