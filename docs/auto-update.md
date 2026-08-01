@@ -20,8 +20,9 @@ This is **the app's only outbound call**, and it is a deliberate exception to th
 2. **Bump the version in both `package.json` and `src-tauri/tauri.conf.json`.** The bundler reads `tauri.conf.json`; a mismatch produces artifacts labelled one version and reporting another.
 3. **Never commit the private key.** It lives at `~/.tauri/expenses-updater.key`, outside the repo, mode `600`. Losing it means no existing install can ever be updated again — the public key baked into every shipped binary will reject anything signed by a new keypair.
 4. **Never change `pubkey` in `tauri.conf.json` without reissuing every install by hand.** Installed builds trust that key and nothing else.
-5. **Build with `--bundles app,updater` when you only need the update artifact.** The DMG step fails if a previous `desktop` volume is still mounted, and **it aborts the build before the updater tarball is regenerated** — leaving a stale `.tar.gz` from the previous version that looks current by timestamp. Check the version inside it before publishing.
-6. **A failed update check stays silent.** Offline is the normal state of a local-first app; a banner about an unreachable server every launch is how a user learns to ignore banners.
+5. **Build with `--bundles app,updater` when you only need the update artifact.** The DMG step fails if a previous volume is still mounted or `target/release/bundle/dmg/` holds output from an earlier run, and **it aborts the build before the updater tarball is regenerated** — leaving a stale `.tar.gz` from the previous version that looks current by timestamp. Check the version inside it before publishing.
+6. **Renaming `productName` renames the update payload.** It is `Expenses.app.tar.gz`, not `desktop.app.tar.gz`; a hand-written manifest pointing at the old name resolves to nothing. `identifier` is what must never change — see [[stack]] rule 7 — but `productName` is only a label, and the database follows the identifier.
+7. **A failed update check stays silent.** Offline is the normal state of a local-first app; a banner about an unreachable server every launch is how a user learns to ignore banners.
 
 ## Contract
 
@@ -78,12 +79,12 @@ Artifacts land in `apps/desktop/src-tauri/target/release/bundle/`:
 
 | File | Purpose |
 |---|---|
-| `macos/desktop.app` | the app itself |
-| `macos/desktop.app.tar.gz` | **the update payload** |
-| `macos/desktop.app.tar.gz.sig` | its signature, pasted into the manifest |
-| `dmg/desktop_<version>_aarch64.dmg` | first-time install |
+| `macos/Expenses.app` | the app itself |
+| `macos/Expenses.app.tar.gz` | **the update payload** |
+| `macos/Expenses.app.tar.gz.sig` | its signature, pasted into the manifest |
+| `dmg/Expenses_<version>_aarch64.dmg` | first-time install |
 
-Then publish a GitHub release whose assets are `desktop.app.tar.gz` and a `latest.json`:
+Then publish a GitHub release whose assets are `Expenses.app.tar.gz` and a `latest.json`:
 
 ```json
 {
@@ -91,7 +92,7 @@ Then publish a GitHub release whose assets are `desktop.app.tar.gz` and a `lates
   "notes": "What changed.",
   "pub_date": "2026-08-01T10:00:00Z",
   "platforms": {
-    "darwin-aarch64": { "signature": "<contents of the .sig file>", "url": "https://github.com/.../releases/download/v0.1.1/desktop.app.tar.gz" }
+    "darwin-aarch64": { "signature": "<contents of the .sig file>", "url": "https://github.com/.../releases/download/v0.1.1/Expenses.app.tar.gz" }
   }
 }
 ```
@@ -104,10 +105,10 @@ Point the endpoint at a local file server, build an older and a newer version, a
 
 ```bash
 # endpoints -> ["http://127.0.0.1:8787/latest.json"], version 0.1.0
-pnpm tauri build --bundles app,updater && cp -R …/bundle/macos/desktop.app /Applications/
-# bump to 0.1.1, rebuild, copy desktop.app.tar.gz + a latest.json into a folder
+pnpm tauri build --bundles app,updater && cp -R …/bundle/macos/Expenses.app /Applications/
+# bump to 0.1.1, rebuild, copy Expenses.app.tar.gz + a latest.json into a folder
 (cd that-folder && python3 -m http.server 8787)
-open -a /Applications/desktop.app     # the banner should appear
+open -a /Applications/Expenses.app     # the banner should appear
 ```
 
 The server log showing `GET /latest.json` is proof the check ran with the right config and permissions. Restore the real endpoint and version afterwards.
@@ -116,7 +117,7 @@ The server log showing `GET /latest.json` is proof the check ran with the right 
 
 The app is **ad-hoc signed, not signed with an Apple Developer ID** (`bundle.macOS.signingIdentity: "-"`). That explicit identity is load-bearing: without it macOS treats an Apple Silicon build downloaded from a GitHub release as *damaged* and refuses to open it at all.
 
-It does not remove Gatekeeper entirely. A **first install** from a downloaded `.dmg` still carries the quarantine attribute, so it needs right-click → Open once, or `xattr -dr com.apple.quarantine /Applications/desktop.app`. The **update** path downloads over HTTP inside the app rather than through a browser, so nothing sets the quarantine attribute — ⚠ verified in principle, not yet observed end to end on a real release. Watch the first one.
+It does not remove Gatekeeper entirely. A **first install** from a downloaded `.dmg` still carries the quarantine attribute, so it needs right-click → Open once, or `xattr -dr com.apple.quarantine /Applications/Expenses.app`. The **update** path downloads over HTTP inside the app rather than through a browser, so nothing sets the quarantine attribute — ⚠ verified in principle, not yet observed end to end on a real release. Watch the first one.
 
 Notarisation would remove both warnings and needs a paid Apple Developer account.
 
