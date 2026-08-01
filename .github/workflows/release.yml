@@ -64,7 +64,7 @@ jobs:
         with:
           projectPath: apps/desktop
           tagName: ${{ github.ref_name }}
-          releaseName: Expenses ${{ github.ref_name }}
+          releaseName: Khata ${{ github.ref_name }}
           # Must not be a draft or a prerelease: the updater endpoint resolves
           # /releases/latest/, which skips both.
           releaseDraft: false

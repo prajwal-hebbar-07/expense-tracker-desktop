@@ -17,11 +17,11 @@ This is **the app's only outbound call**, and it is a deliberate exception to th
 ## Rules for an agent working here
 
 1. **Never break the version chain.** An installed build can only update itself if *it* already contains the updater. `0.1.0` is the first build that does, so the first update it can accept is `0.1.1`.
-2. **Bump the version in both `package.json` and `src-tauri/tauri.conf.json`.** The bundler reads `tauri.conf.json`; a mismatch produces artifacts labelled one version and reporting another.
+2. **Bump the version in all three of `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`.** The bundler reads `tauri.conf.json` and it wins; a mismatch produces artifacts labelled one version and reporting another. `Cargo.lock` follows on the next build.
 3. **Never commit the private key.** It lives at `~/.tauri/expenses-updater.key`, outside the repo, mode `600`. Losing it means no existing install can ever be updated again — the public key baked into every shipped binary will reject anything signed by a new keypair.
 4. **Never change `pubkey` in `tauri.conf.json` without reissuing every install by hand.** Installed builds trust that key and nothing else.
 5. **Build with `--bundles app,updater` when you only need the update artifact.** The DMG step fails if a previous volume is still mounted or `target/release/bundle/dmg/` holds output from an earlier run, and **it aborts the build before the updater tarball is regenerated** — leaving a stale `.tar.gz` from the previous version that looks current by timestamp. Check the version inside it before publishing.
-6. **Renaming `productName` renames the update payload.** It is `Khata.app.tar.gz`, not `desktop.app.tar.gz`; a hand-written manifest pointing at the old name resolves to nothing. `identifier` is what must never change — see [[stack]] rule 7 — but `productName` is only a label, and the database follows the identifier.
+6. **Renaming `productName` renames the update payload.** It is `Khata.app.tar.gz`, not `desktop.app.tar.gz`; a hand-written manifest pointing at the old name resolves to nothing. `identifier` is what must never change — see [[stack]] rule 7 — but `productName` is only a label, and the database follows the identifier. ⚠ 0.1.0 shipped as `Expenses.app` and 0.1.1 as `Khata.app`, so the first update crosses a rename: the updater replaces the bundle at the path the running app occupies, which is `/Applications/Expenses.app`. Check what the bundle is called afterwards rather than assuming it followed the new name.
 7. **A failed update check stays silent.** Offline is the normal state of a local-first app; a banner about an unreachable server every launch is how a user learns to ignore banners.
 
 ## Contract
