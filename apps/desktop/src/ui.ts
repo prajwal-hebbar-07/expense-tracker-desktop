@@ -7,11 +7,21 @@
 // arbitrary values (`h-[34px]`) on purpose — rounding 34 to `h-9` (36) once is
 // invisible, but doing it in four places stops the four-field row aligning.
 
-/** Page shell: one column, centred, breathing room that grows with the window. */
-export const page = "mx-auto w-full max-w-3xl px-5 py-8 sm:px-8 sm:py-10";
+/** Page shell: one column, centred, breathing room that grows with the window.
+ *
+ *  Two caps, not one, and both are wider than they look like they need to be.
+ *  A tiled or full-screen window is the normal state of a desktop app, not the
+ *  exception: at max-w-3xl a fullscreen 27" spent 33% of its width on content
+ *  and 67% on grey. The cap still exists because an unbounded transaction row
+ *  puts the title and its amount 2000px apart, which is worse than a gutter.
+ *
+ *  `short:` trims the vertical padding under 700px of viewport — a quarter-screen
+ *  tile is ~450px tall, where py-10 top and bottom is 80px of the 450 spent
+ *  before the first figure. */
+export const page = "mx-auto w-full max-w-5xl px-5 py-8 sm:px-8 sm:py-10 short:py-4";
 /** Dashboard width. Four summary tiles and a bar chart need more room than a
- *  form does; at max-w-3xl the tiles truncate their own figures. */
-export const pageWide = "mx-auto w-full max-w-5xl px-5 py-8 sm:px-8 sm:py-10";
+ *  form does; at the `page` cap the tiles truncate their own figures. */
+export const pageWide = "mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 sm:py-10 short:py-4";
 export const h1 = "text-[26px] font-semibold tracking-[-0.015em] leading-tight";
 export const h2 = "text-[15px] font-semibold tracking-tight";
 /** Grouping surface. Sections read as separate objects instead of one long page. */

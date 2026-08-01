@@ -207,8 +207,13 @@ function Ranked({ rows, total }: { rows: Slice[]; total: number }) {
   );
 }
 
-/** Two series, so a legend is mandatory. The pair is validated for colour-vision
- *  separation — see the --series-b note in App.css. */
+/**
+ * Two series, so a legend is mandatory — and here it is load-bearing, not
+ * decoration. The green/blue pair separates well for the common red–green
+ * deficiencies but collapses under tritanopia (ΔE ~1.5), so every series gets a
+ * row carrying its name *and* its figure: the card stays readable with the hues
+ * removed entirely. Measured in `series-contrast.check.ts`.
+ */
 function Split({ account, cardTotal }: { account: number; cardTotal: number }) {
   const total = account + cardTotal || 1;
   return (
@@ -296,21 +301,21 @@ export default function Analytics() {
               value={formatAmountRound(now.received)}
               delta={{ pct: change(now.received, before.received), goal: "higher", vs }}
               icon={Wallet}
-              tint="credit"
+              tint="accent"
             />
             <Stat
               label="Net"
               value={formatAmountRound(now.net)}
               delta={{ pct: change(now.net, before.net), goal: "higher", vs }}
               icon={TrendUp}
-              tint="accent"
+              tint="violet"
             />
             <Stat
               label="Per day"
               value={formatAmountRound(now.perDay)}
               delta={{ pct: change(now.perDay, before.perDay), goal: "lower", vs }}
               icon={Calendar}
-              tint="violet"
+              tint="muted"
             />
           </div>
 

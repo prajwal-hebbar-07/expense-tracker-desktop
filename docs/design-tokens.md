@@ -3,14 +3,14 @@ id: design-tokens
 type: decision
 status: active
 updated: 2026-08-01
-links: [stack, floating-layer, nav-breakpoints, custom-select, summary-tile-delta]
+links: [stack, accent-green, floating-layer, nav-breakpoints, custom-select, summary-tile-delta]
 ---
 
 # Design tokens
 
 Colour is defined once in `apps/desktop/src/App.css` as plain CSS variables, re-declared under `@media (prefers-color-scheme: dark)`, and exposed to Tailwind through `@theme inline`. Elements therefore use `bg-surface` / `text-muted` / `border-line` with **no `dark:` twin** — the media query re-themes classes that were already generated. Shared class strings live in `src/ui.ts`.
 
-Every surface sits inside a narrow 4–10% lightness band of the same cool grey, so nothing glares after an hour. The only saturated pixels in the app are the accent button, the active nav, and a signed amount. Blue reads as "the app", green as money in, violet as borrowed money — three hues that stay distinct for the common red–green deficiencies because they also differ in sign and position.
+Every surface sits inside a narrow 4–10% lightness band of the same cool grey, so nothing glares after an hour. The only saturated pixels in the app are the accent button, the active nav, and a signed amount. Green reads as "the app" *and* as money in — the same token, see [[accent-green]] — violet as borrowed money, red as destructive. They stay distinct for the common red–green deficiencies because they also differ in sign and position.
 
 Layout lives in [[nav-breakpoints]]; the popup surface in [[floating-layer]].
 
@@ -41,18 +41,21 @@ Layout lives in [[nav-breakpoints]]; the popup surface in [[floating-layer]].
 | `--ink` | `text-ink` | `#14181c` | `#e8ebed` | Primary text, debit amounts |
 | `--muted` | `text-muted` | `#5c666f` | `#9aa3ab` | Labels, account names, placeholders |
 | `--line` | `border-line` | `#dfe3e8` | `#24282c` | Borders, dividers, input rest border |
-| `--accent` | `bg-accent`, `text-accent` | `#2e5fd0` | `#7aa2f7` | Primary button, active nav, links, focus |
-| `--accent-ink` | `text-accent-ink` | `#f7f9ff` | `#0b1020` | Text/icons on `--accent` |
-| `--credit` | `text-credit` | `#14795a` | `#4fb286` | Money in, positive net |
+| `--accent` | `bg-accent`, `text-accent` | `#0e7a57` | `#4fd1a5` | Primary button, active nav, links, focus |
+| `--accent-ink` | `text-accent-ink` | `#f2fbf7` | `#06231a` | Text/icons on `--accent` |
+| `--credit` | `text-credit` | `var(--accent)` | `var(--accent)` | Money in, positive net — an alias, see [[accent-green]] |
 | `--violet` | `text-violet` | `#6a4bc4` | `#9b8af2` | Card outstanding, card rows |
 | `--danger` | `text-danger` | `#c0324a` | `#e5677a` | Delete, confirm, input error — never ordinary debits |
-| `--series-b` | `text-series-b` | `#b45309` | `#d97706` | Second chart series only |
+| `--series-b` | `bg-series-b` | `#2e5fd0` | `#7aa2f7` | Second chart series only |
+| `--warn` | `bg-warn`, `text-warn` | `#b45309` | `#d97706` | Caution state. Never a series hue — it lands next to `--series-b` |
 
 `--rail` is deliberately a shade *away* from `--bg` (lighter in light, darker in dark) so the rail reads as chrome rather than as page.
 
 Weak twins (`--accent-weak`, `--credit-weak`, `--danger-weak`, `--violet-weak`, `--series-b-weak`, utilities `bg-*-weak`) are **alpha, not mixed hex**, so they sit correctly on `--surface` and on `--overlay` both. Plus `--hover`, `--focus`, `--shadow` (`shadow-card`), `--menu-shadow` (`shadow-menu`).
 
-Contrast — dark: ink on bg 15.8:1 · muted on surface 6.9:1 · accent-ink on accent 7.5:1. Light: 16.5 · 5.7 · 5.5.
+Contrast — dark: ink on bg 15.8:1 · muted on surface 6.9:1 · accent-ink on accent 8.7:1. Light: 16.5 · 5.7 · 5.1.
+
+The two chart series (`--accent` + `--series-b`) are measured, not eyeballed — `apps/desktop/series-contrast.check.ts` prints ΔE per theme per deficiency and is the thing to re-run before changing either hue. Current: normal 96/81, protanopia 84/66, deuteranopia 77/56, **tritanopia 1.4/1.8**. See [[accent-green]] for why that last pair is accepted.
 
 **Shape**: radius 6 on inputs and buttons, 10 on cards, 14 on the window. Control height 34, card padding 20, field gap 12, spacing on a 4px base.
 

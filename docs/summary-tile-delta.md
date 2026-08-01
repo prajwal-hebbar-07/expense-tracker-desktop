@@ -3,7 +3,7 @@ id: summary-tile-delta
 type: decision
 status: active
 updated: 2026-08-01
-links: [design-tokens, filter-row, analytics-page]
+links: [design-tokens, accent-green, filter-row, analytics-page]
 ---
 
 # The summary tile and its delta
@@ -31,18 +31,20 @@ Spent ↑30% and Net ↓48% are opposite marks in the same red, and that is corr
 ```ts
 <Stat label value
       delta={{ pct: number | null, goal: "lower" | "higher", vs: string }}
-      icon tint={"accent" | "credit" | "danger" | "violet"} />
+      icon tint={"accent" | "danger" | "violet" | "muted"} />
 ```
 
 `vs` is the previous window's label, shortened by the caller: Analytics strips a trailing year that matches the current window's, so "Jun 2026" reads "Jun".
 
-Tints: Spent `danger` · Received `credit` · Net `accent` · Per day `violet`.
+Tints: Spent `danger` · Received `accent` (green = money in) · Net `violet` · Per day `muted`.
+
+Four distinct circles, and only three hues: the money flows carry colour, the derived average does not — Per day is arithmetic on the other three, not a flow of its own. There is no `credit` tint, because `--credit-weak` aliases `--accent-weak` and it would be a second name for the same circle.
 
 Sizes: padding 14, gap 8, min-height 118, circle 40 with a 24px 1.7-stroke glyph, label 11/500 caps +7%, figure 22/600 tabular at −1% tracking, delta 12/500 with a 5px gap.
 
 `NOISE_PCT` is 5: under it a move is noise. A tile that shouts at a 2% wobble is ignored by the time it has something worth saying.
 
-Colour ratios at 12px on `--surface`: `--danger` 5.5:1, `--credit` 6.8:1, `--muted` 6.3:1 — all above the 4.5:1 small-text floor.
+Delta-row colour ratios on `--surface`, light/dark: `--danger` 5.4/5.5 · `--credit` (= `--accent`) 5.2/9.2 · `--muted` 5.7/6.9 — all above the 4.5:1 small-text floor.
 
 ## Anti-patterns
 

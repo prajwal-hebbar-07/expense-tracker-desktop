@@ -73,7 +73,10 @@ export default function Reports() {
           {report.findings.length > 0 && (
             <section className="mt-6">
               <h2 className={h2}>What stands out</h2>
-              <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              {/* Independent cards, so extra width becomes a third column rather
+                  than three wider ones — a finding is a paragraph, and a 700px
+                  measure is where one stops being readable. */}
+              <div className="mt-3 grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
                 {report.findings.map((f) => {
                   const tone = TONE[f.severity];
                   const Icon = tone.icon;
@@ -135,7 +138,7 @@ export default function Reports() {
           {report.reframes.length > 0 && (
             <section className="mt-6">
               <h2 className={h2}>Same numbers, different angle</h2>
-              <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              <div className="mt-3 grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
                 {report.reframes.map((r) => (
                   <article key={r.title} className="rounded-[10px] border border-line bg-surface p-5">
                     <Repeat className="size-5 text-violet" />

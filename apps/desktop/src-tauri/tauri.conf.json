@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Expenses",
+  "productName": "Khata",
   "version": "0.1.0",
   "identifier": "com.hebbar.desktop",
   "build": {
@@ -12,11 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "Expenses",
+        "title": "Khata",
         "width": 1024,
         "height": 720,
         "minWidth": 420,
-        "minHeight": 480
+        "minHeight": 400
       }
     ],
     "security": {

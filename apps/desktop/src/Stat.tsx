@@ -17,11 +17,17 @@ const MARK = { up: MarkUp, down: MarkDown, flat: MarkFlat };
 // Written out rather than interpolated: Tailwind scans source text for class
 // names, so `bg-${tint}-weak` compiles to a class that was never generated and
 // the circle comes out transparent with no error anywhere.
+// Four distinct circles: the three money flows carry a hue, the derived average
+// does not. `credit` is deliberately absent — --credit-weak now aliases
+// --accent-weak, so a "credit" tint would be a second name for the same circle.
 const TINT = {
   accent: "bg-accent-weak text-accent",
-  credit: "bg-credit-weak text-credit",
   danger: "bg-danger-weak text-danger",
   violet: "bg-violet-weak text-violet",
+  /** Per day. An average is arithmetic on the other three, not a flow of its
+   *  own, so it gets the neutral circle rather than a fourth hue competing
+   *  with them. */
+  muted: "bg-hover text-muted",
 } as const;
 
 /** The summary tile on Analytics. One copy, because two screens showing the

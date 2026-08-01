@@ -12,7 +12,7 @@ One `<nav>` in `apps/desktop/src/App.tsx`, four shapes, all CSS. Five destinatio
 
 At 13.5px the labels are: Overview 112 · Transactions 134 · Analytics 108 · Report 92 · Settings 100, plus four 4px gaps = **562px**. The wordmark plus its 16px gap adds **94**. A 620px window has 588 of usable bar, so labelled items fit only once the wordmark leaves.
 
-The wordmark is what gives, and it costs nothing: this is a single-window app, the OS title bar already says Expenses, and the `<h1>` under the bar names the screen.
+The wordmark is what gives, and it costs nothing: this is a single-window app, the OS title bar already says Khata, and the `<h1>` under the bar names the screen.
 
 ## Rules for an agent working here
 
