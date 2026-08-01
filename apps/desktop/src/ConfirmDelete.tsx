@@ -18,8 +18,8 @@ export default function ConfirmDelete({
   onConfirm: () => void;
 }) {
   return (
-    <div className="flex flex-1 flex-wrap items-center gap-3 rounded-xl border border-danger/25 bg-danger/10 px-3 py-2">
-      <span className="flex-1 text-sm">
+    <div className="flex flex-1 flex-wrap items-center gap-3 rounded-md border border-danger bg-danger-weak px-3 py-2">
+      <span className="flex-1 text-[13.5px]">
         Delete <span className="font-medium">{label}</span>? This cannot be undone.
       </span>
       <button autoFocus className={cancelButton} onClick={onCancel}>

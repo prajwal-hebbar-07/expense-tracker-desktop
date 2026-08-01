@@ -1,15 +1,18 @@
-// Inline SVG icons instead of an icon package: nine glyphs is a few hundred
-// bytes here versus a dependency in the WebView bundle. Shapes are the standard
-// 24×24 stroke grid, so any Lucide/Feather path can be pasted in as-is.
+// Inline SVG icons instead of an icon package: a couple of dozen glyphs is a
+// few hundred bytes here versus a dependency in the WebView bundle. Shapes are
+// the standard 24×24 stroke grid, so any Lucide/Feather path can be pasted in
+// as-is.
 
 type Props = { className?: string };
 
+// 1.7, not 2: these are drawn at 18px far more often than at 24, and a 2-stroke
+// at 18 is heavy enough to read as bold next to 13.5px text.
 const Svg = ({ className = "size-5", children }: Props & { children: React.ReactNode }) => (
   <svg
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth={2}
+    strokeWidth={1.7}
     strokeLinecap="round"
     strokeLinejoin="round"
     aria-hidden="true"
@@ -27,23 +30,28 @@ export const Wallet = (p: Props) => (
   </Svg>
 );
 
+/** Overview. Four panes, not a house — the screen is a dashboard, and a house
+ *  glyph in a nav of five promises a "home" that this app does not have. */
 export const Home = (p: Props) => (
   <Svg {...p}>
-    <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-    <path d="M9 22V12h6v10" />
+    <rect x="3" y="3" width="7" height="7" rx="1.5" />
+    <rect x="14" y="3" width="7" height="7" rx="1.5" />
+    <rect x="3" y="14" width="7" height="7" rx="1.5" />
+    <rect x="14" y="14" width="7" height="7" rx="1.5" />
   </Svg>
 );
 
 export const List = (p: Props) => (
   <Svg {...p}>
-    <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+    <path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01" />
   </Svg>
 );
 
 export const Sliders = (p: Props) => (
   <Svg {...p}>
-    <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3" />
-    <path d="M1 14h6M9 8h6M17 16h6" />
+    <path d="M4 8h8M17 8h3M4 16h3M12 16h8" />
+    <circle cx="14.5" cy="8" r="2.2" />
+    <circle cx="9.5" cy="16" r="2.2" />
   </Svg>
 );
 
@@ -70,8 +78,38 @@ export const ArrowsUpDown = (p: Props) => (
 
 export const Calendar = (p: Props) => (
   <Svg {...p}>
-    <rect x="3" y="4" width="18" height="18" rx="2" />
-    <path d="M16 2v4M8 2v4M3 10h18" />
+    <rect x="3" y="5" width="18" height="16" rx="2.5" />
+    <path d="M3 10h18M8 3v4M16 3v4" />
+  </Svg>
+);
+
+/** The leading slot on a transfer row, and the Spent tile's sibling. Money
+ *  going one way and coming back the other — no sign, because none applies. */
+export const ArrowsLeftRight = (p: Props) => (
+  <Svg {...p}>
+    <path d="M4 9h13M14 6l3 3-3 3M20 15H7M10 12l-3 3 3 3" />
+  </Svg>
+);
+
+/** Money out. Points away from the origin. */
+export const ArrowOut = (p: Props) => (
+  <Svg {...p}>
+    <path d="M7 17L17 7M9 7h8v8" />
+  </Svg>
+);
+
+/** Money in. The same glyph reflected, so a scan down the leading column reads
+ *  direction by angle before it reads it by colour. */
+export const ArrowIn = (p: Props) => (
+  <Svg {...p}>
+    <path d="M17 7L7 17M7 9v8h8" />
+  </Svg>
+);
+
+/** The Spent tile. A single arrow leaving, matched to ArrowOut's direction. */
+export const ArrowRight = (p: Props) => (
+  <Svg {...p}>
+    <path d="M5 12h13M13 6l6 6-6 6" />
   </Svg>
 );
 
@@ -88,6 +126,48 @@ export const ChevronDown = (p: Props) => (
   </Svg>
 );
 
+export const ChevronUp = (p: Props) => (
+  <Svg {...p}>
+    <path d="M18 15l-6-6-6 6" />
+  </Svg>
+);
+
+export const ChevronLeft = (p: Props) => (
+  <Svg {...p}>
+    <path d="M15 6l-6 6 6 6" />
+  </Svg>
+);
+
+export const ChevronRight = (p: Props) => (
+  <Svg {...p}>
+    <path d="M9 6l6 6-6 6" />
+  </Svg>
+);
+
+/** The selected marker inside a menu. Squarer than `Check` so it reads at the
+ *  16px it is drawn at there. */
+export const Tick = (p: Props) => (
+  <Svg {...p}>
+    <path d="M5 12.5l4.5 4.5L19 7" />
+  </Svg>
+);
+
+// The delta marks. Filled, not stroked, and on their own 10-unit grid: at the
+// 9px these render at, a 1.7 stroke is 1.7px of ink on a 9px glyph and greys
+// out against --surface. Up and down are separate paths rather than one
+// rotated triangle, so neither inherits the other's optical weight.
+const Mark = ({ className = "size-[9px]", d }: Props & { d: string }) => (
+  <svg viewBox="0 0 10 10" fill="currentColor" aria-hidden="true" className={className}>
+    <path d={d} />
+  </svg>
+);
+
+export const MarkUp = (p: Props) => <Mark {...p} d="M5 1l4 7H1z" />;
+export const MarkDown = (p: Props) => <Mark {...p} d="M5 9l4-7H1z" />;
+/** "Nothing happened". A slab, because `≈` at 12px collapses into a smudge
+ *  that scans as a dash, an equals sign, or dirt on the screen. */
+export const MarkFlat = (p: Props) => <Mark {...p} d="M1 4h8v2H1z" />;
+
 export const TrendUp = (p: Props) => (
   <Svg {...p}>
     <path d="m3 17 6-6 4 4 8-8" />
@@ -95,17 +175,18 @@ export const TrendUp = (p: Props) => (
   </Svg>
 );
 
+/** Three bars on a baseline. */
 export const BarChart = (p: Props) => (
   <Svg {...p}>
-    <path d="M3 3v16a2 2 0 0 0 2 2h16" />
-    <path d="M8 17V9M13 17V5M18 17v-5" />
+    <path d="M3 21h18M6.5 21V12M12 21V6M17.5 21v-6" />
   </Svg>
 );
 
+/** A sheet with three rules, the last one short — prose, not a table. */
 export const FileText = (p: Props) => (
   <Svg {...p}>
-    <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z" />
-    <path d="M14 2v6h6M9 13h6M9 17h6" />
+    <rect x="4" y="3" width="16" height="18" rx="2.5" />
+    <path d="M8 8.5h8M8 12.5h8M8 16.5h5" />
   </Svg>
 );
 

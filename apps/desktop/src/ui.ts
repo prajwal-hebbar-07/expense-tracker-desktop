@@ -1,42 +1,77 @@
 // Shared Tailwind class strings. Extracted from Settings so a second screen
 // does not fork its own slightly-different input and button. Colours are the
 // semantic tokens from App.css, so nothing here needs a `dark:` twin.
+//
+// Sizes are the design system's, not Tailwind's defaults: control height 34,
+// radius 6 on controls / 10 on cards, field gap 12. They are written as
+// arbitrary values (`h-[34px]`) on purpose — rounding 34 to `h-9` (36) once is
+// invisible, but doing it in four places stops the four-field row aligning.
 
 /** Page shell: one column, centred, breathing room that grows with the window. */
-export const page = "mx-auto w-full max-w-3xl px-5 py-8 sm:px-8 sm:py-12";
+export const page = "mx-auto w-full max-w-3xl px-5 py-8 sm:px-8 sm:py-10";
 /** Dashboard width. Four summary tiles and a bar chart need more room than a
  *  form does; at max-w-3xl the tiles truncate their own figures. */
-export const pageWide = "mx-auto w-full max-w-5xl px-5 py-8 sm:px-8 sm:py-12";
-export const h1 = "text-2xl font-semibold tracking-tight sm:text-3xl";
-export const h2 = "text-base font-semibold tracking-tight";
+export const pageWide = "mx-auto w-full max-w-5xl px-5 py-8 sm:px-8 sm:py-10";
+export const h1 = "text-[26px] font-semibold tracking-[-0.015em] leading-tight";
+export const h2 = "text-[15px] font-semibold tracking-tight";
 /** Grouping surface. Sections read as separate objects instead of one long page. */
-export const card = "rounded-2xl border border-line bg-surface p-5 sm:p-6";
+export const card = "rounded-[10px] border border-line bg-surface p-5 shadow-card";
+
+/** Field label: 11/500 caps, +7% tracking. */
+export const label = "text-[11px] font-medium tracking-[0.07em] text-muted uppercase";
+
+/** Rest border is --line; hover goes to --muted; focus is 1px --accent plus a
+ *  3px --focus ring. The ring is a box-shadow rather than an outline so it can
+ *  sit inside a scrolling menu without being clipped. */
+export const focusRing =
+  "outline-none focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_var(--focus)]";
 
 export const input =
   // No min-width here: call sites set their own, and two competing min-w
   // utilities on one element resolve by stylesheet order, not by call site.
-  "rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink " +
-  "placeholder:text-muted outline-none transition-colors " +
-  "focus:border-accent focus:ring-2 focus:ring-accent/20";
+  "h-[34px] rounded-md border border-line bg-field px-2.5 text-[13.5px] text-ink " +
+  "placeholder:text-muted transition-colors hover:border-muted " +
+  "focus:border-accent focus:shadow-[0_0_0_3px_var(--focus)] focus:outline-none " +
+  "disabled:opacity-55";
+
+/** The same box, sized for a multi-line control — `h-[34px]` would collapse it. */
+export const textarea =
+  "min-h-20 rounded-md border border-line bg-field px-2.5 py-2 text-[13.5px] text-ink " +
+  "placeholder:text-muted transition-colors hover:border-muted " +
+  "focus:border-accent focus:shadow-[0_0_0_3px_var(--focus)] focus:outline-none";
+
+/** Error skin for a field, appended to `input`. Both the border and the fill
+ *  move, because a border alone is one pixel of red on a 34px control. */
+export const inputError = "border-danger! bg-danger-weak!";
+/** The message under it. Sits at the field's own width, never in a page-level box. */
+export const fieldError = "mt-1 text-[11.5px] text-danger";
+
 export const button =
-  "rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-accent-ink cursor-pointer " +
-  "transition-opacity hover:opacity-90 active:opacity-75 " +
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  "h-[34px] rounded-md bg-accent px-4 text-[13px] font-medium text-accent-ink cursor-pointer " +
+  "transition-[filter,opacity] hover:brightness-[1.08] active:brightness-95 " +
+  "focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_var(--focus)] " +
+  "disabled:cursor-default disabled:opacity-[.38] disabled:hover:brightness-100";
 export const cancelButton =
-  "rounded-xl border border-line bg-surface px-4 py-2 text-sm font-medium text-ink " +
-  "cursor-pointer transition-colors hover:border-accent " +
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  "h-[34px] rounded-md border border-line bg-surface px-3.5 text-[13px] font-medium text-ink " +
+  "cursor-pointer transition-colors hover:border-muted " +
+  "focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_var(--focus)]";
 export const iconButton =
-  "rounded-lg px-2 py-1 text-sm text-muted cursor-pointer transition-colors " +
-  "hover:bg-ink/5 hover:text-ink focus-visible:outline-2 focus-visible:outline-accent";
+  "rounded-md px-2 py-1 text-[12.5px] text-muted cursor-pointer transition-colors " +
+  "hover:bg-hover hover:text-ink " +
+  "focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_var(--focus)]";
 export const dangerButton =
   // text-surface, not text-white: danger is a light red in dark mode, where
   // white on it is unreadable and the page background is the contrasting colour.
-  "rounded-xl bg-danger px-4 py-2 text-sm font-medium text-surface cursor-pointer " +
-  "transition-opacity hover:opacity-90 active:opacity-75 " +
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger";
+  "h-[34px] rounded-md bg-danger px-3.5 text-[13px] font-medium text-surface cursor-pointer " +
+  "transition-[filter] hover:brightness-[1.08] active:brightness-95 " +
+  "focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_var(--focus)]";
 
 export const errorBox =
-  "mt-4 rounded-xl border border-danger/25 bg-danger/10 px-4 py-3 text-sm text-danger";
+  "mt-4 rounded-md border border-danger bg-danger-weak px-3.5 py-2.5 text-[12.5px] text-danger";
 export const noticeBox =
-  "mt-4 rounded-xl border border-credit/25 bg-credit/10 px-4 py-3 text-sm text-credit";
+  "mt-4 rounded-md border border-credit bg-credit-weak px-3.5 py-2.5 text-[12.5px] text-credit";
+
+/** The floating layer, shared by the select menu, the calendar and the chart
+ *  tooltip. All three parts are required — see the --overlay note in App.css. */
+export const overlay =
+  "rounded-md border border-line bg-overlay shadow-menu menu-in";

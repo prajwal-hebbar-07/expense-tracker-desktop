@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { input } from "./ui";
-import { ChevronDown } from "./icons";
-import { Period, TODAY, Window, previous, windowFor } from "./analyticsFeed";
+import { ChevronLeft, ChevronRight } from "./icons";
+import DatePicker from "./DatePicker";
+import { Period, TODAY, Window, daysBetween, previous, windowFor } from "./analyticsFeed";
 
 const PERIODS: { id: Period; label: string }[] = [
   { id: "week", label: "Week" },
@@ -56,30 +56,57 @@ export function usePeriod(initial: Period = "month") {
   };
 }
 
+/**
+ * The filter row, shared by Analytics and Report. One 52px surface holding a
+ * segmented period switch and either a stepper or a pair of date fields — the
+ * two arrangements keep the same height, because a row that grows when you pick
+ * "Range" shoves the whole page down for a control you were already looking at.
+ */
 export default function PeriodPicker({
   controls,
   label,
+  summary,
 }: {
   controls: ReturnType<typeof usePeriod>["controls"];
   label: string;
+  /** The resolved window, for the count on the right. Sits at the end of the
+   *  row and drops below `md`, where it is the first thing worth losing. */
+  summary?: { from: string; to: string; count: number };
 }) {
   const { period, setPeriod, offset, setOffset, range, setRange } = controls;
 
+  const choose = (id: Period) => {
+    setPeriod(id);
+    // "3 weeks ago" and "3 years ago" are not the same place.
+    setOffset(0);
+  };
+
   return (
-    <div className="mt-6 flex flex-wrap items-center gap-2">
-      <div className="flex gap-1 rounded-xl border border-line bg-surface p-1">
+    <div className="mt-4 flex min-h-[52px] flex-col gap-2.5 rounded-[10px] border border-line bg-surface px-3 py-2.5 shadow-card sm:flex-row sm:items-center sm:gap-4">
+      <div
+        role="tablist"
+        aria-label="Period"
+        onKeyDown={(e) => {
+          const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+          if (!step) return;
+          e.preventDefault();
+          const at = PERIODS.findIndex((p) => p.id === period);
+          choose(PERIODS[(at + step + PERIODS.length) % PERIODS.length].id);
+        }}
+        className="flex h-[34px] shrink-0 gap-0.5 rounded-lg border border-line bg-field p-[3px] focus-within:shadow-[0_0_0_3px_var(--focus)]"
+      >
         {PERIODS.map((p) => (
           <button
             key={p.id}
-            onClick={() => {
-              setPeriod(p.id);
-              setOffset(0);
-            }}
-            aria-pressed={period === p.id}
-            className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm transition-colors ${
+            role="tab"
+            aria-selected={period === p.id}
+            // Roving: one stop for the whole group, then ←/→ inside it.
+            tabIndex={period === p.id ? 0 : -1}
+            onClick={() => choose(p.id)}
+            className={`h-7 flex-1 cursor-pointer rounded-md px-3 text-[12.5px] font-medium transition-colors outline-none sm:flex-none ${
               period === p.id
-                ? "bg-accent/15 font-medium text-accent"
-                : "text-muted hover:text-ink"
+                ? "bg-surface text-ink shadow-card"
+                : "text-muted hover:bg-hover"
             }`}
           >
             {p.label}
@@ -88,41 +115,69 @@ export default function PeriodPicker({
       </div>
 
       {period === "range" ? (
-        <div className="flex items-center gap-2">
-          <input
-            type="date"
-            className={`${input} w-40`}
+        <div className="flex min-w-0 items-center gap-2">
+          <DatePicker
+            className="min-w-0 flex-1 sm:w-[9.5rem] sm:flex-none"
             value={range.from}
-            onChange={(e) => setRange({ ...range, from: e.currentTarget.value })}
+            onChange={(from) => setRange({ ...range, from })}
           />
-          <span className="text-muted">→</span>
-          <input
-            type="date"
-            className={`${input} w-40`}
+          <span className="shrink-0 text-muted">–</span>
+          <DatePicker
+            className="min-w-0 flex-1 sm:w-[9.5rem] sm:flex-none"
             value={range.to}
-            onChange={(e) => setRange({ ...range, to: e.currentTarget.value })}
+            onChange={(to) => setRange({ ...range, to })}
           />
         </div>
       ) : (
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setOffset(offset + 1)}
-            aria-label="Previous period"
-            className="grid size-8 cursor-pointer place-items-center rounded-lg text-muted transition-colors hover:bg-ink/5 hover:text-ink"
-          >
-            <ChevronDown className="size-4 rotate-90" />
-          </button>
-          <span className="min-w-40 text-center text-sm font-medium">{label}</span>
-          <button
-            onClick={() => setOffset(Math.max(0, offset - 1))}
+        <div className="flex items-center gap-0.5">
+          <Step label="Previous period" onClick={() => setOffset(offset + 1)} />
+          <span className="min-w-24 text-center text-[13.5px] font-medium tabular-nums">
+            {label}
+          </span>
+          <Step
+            label="Next period"
+            next
+            // aria-disabled, not `disabled`: the button stays focusable so a
+            // screen reader can reach it and say why it does nothing.
             disabled={offset === 0}
-            aria-label="Next period"
-            className="grid size-8 cursor-pointer place-items-center rounded-lg text-muted transition-colors hover:bg-ink/5 hover:text-ink disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent"
-          >
-            <ChevronDown className="size-4 -rotate-90" />
-          </button>
+            onClick={() => setOffset(Math.max(0, offset - 1))}
+          />
         </div>
       )}
+
+      {summary && (
+        <p className="hidden shrink-0 font-mono text-[11px] text-muted tabular-nums md:ml-auto md:block">
+          {daysBetween(summary.from, summary.to)} days · {summary.count} transactions
+        </p>
+      )}
     </div>
+  );
+}
+
+function Step({
+  label,
+  onClick,
+  next,
+  disabled,
+}: {
+  label: string;
+  onClick: () => void;
+  next?: boolean;
+  disabled?: boolean;
+}) {
+  const Icon = next ? ChevronRight : ChevronLeft;
+  return (
+    <button
+      aria-label={label}
+      aria-disabled={disabled}
+      onClick={() => !disabled && onClick()}
+      className={`grid size-7 place-items-center rounded-md outline-none focus-visible:shadow-[0_0_0_3px_var(--focus)] ${
+        disabled
+          ? "cursor-default text-muted opacity-[.38]"
+          : "cursor-pointer text-ink hover:bg-hover"
+      }`}
+    >
+      <Icon className="size-[18px]" />
+    </button>
   );
 }

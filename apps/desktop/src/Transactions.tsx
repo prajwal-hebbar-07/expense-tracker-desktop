@@ -3,7 +3,9 @@ import { db } from "./db";
 import { fromMinor, formatAmount } from "./money";
 import { button, iconButton, cancelButton, card, errorBox, h1, page } from "./ui";
 import ConfirmDelete from "./ConfirmDelete";
-import { Draft, Fields, cardLabel, sourceOf, toParams } from "./transactionForm";
+import { ArrowIn, ArrowOut, ArrowsLeftRight } from "./icons";
+import { Fields } from "./TransactionFields";
+import { Draft, Errors, cardHint, cardLabel, sourceOf, toParams } from "./transactionForm";
 import {
   TRANSACTIONS,
   UPDATE_TRANSACTION,
@@ -57,6 +59,7 @@ export default function Transactions() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [invalid, setInvalid] = useState<Errors>({});
   const [pending, setPending] = useState<number | null>(null);
 
   async function refresh() {
@@ -94,7 +97,10 @@ export default function Transactions() {
   function save(id: number) {
     if (!draft) return;
     const result = toParams(draft);
-    if ("error" in result) return setError(result.error);
+    // Errors land under the fields that caused them, not in a page-level box
+    // above a form the user is already looking at.
+    if ("errors" in result) return setInvalid(result.errors);
+    setInvalid({});
 
     run(async () => {
       await (await db).execute(UPDATE_TRANSACTION, [...result.params, id]);
@@ -114,7 +120,7 @@ export default function Transactions() {
 
   const options = {
     accounts: accounts.map((a) => ({ id: a.id, label: a.bank })),
-    cards: cards.map((c) => ({ id: c.id, label: cardLabel(c) })),
+    cards: cards.map((c) => ({ id: c.id, label: cardLabel(c), hint: cardHint(c) })),
   };
 
   return (
@@ -128,11 +134,14 @@ export default function Transactions() {
       )}
 
       {rows.length === 0 ? (
-        <p className={`mt-6 ${card} text-sm text-muted`}>
-          Nothing recorded yet. Add one from the Overview tab.
-        </p>
+        <div className={`mt-5 ${card} py-10 text-center`}>
+          <p className="text-[13.5px] font-medium">Nothing logged yet.</p>
+          <p className="mt-1 text-[12.5px] text-muted">
+            Your first entry shows up here, newest first, grouped by day.
+          </p>
+        </div>
       ) : (
-        <ul className={`mt-6 divide-y divide-line ${card} py-1 sm:py-2`}>
+        <ul className={`mt-5 divide-y divide-line ${card} py-1`}>
           {rows.map((r, i) => (
             <li key={r.id}>
               {/* One heading per date, since the query is already sorted by it. */}
@@ -144,14 +153,16 @@ export default function Transactions() {
               )}
 
               {editing === r.id && draft ? (
-                <div className="flex flex-wrap gap-2 py-3">
-                  <Fields draft={draft} onChange={setDraft} {...options} />
-                  <button className={button} onClick={() => save(r.id)}>
-                    Save
-                  </button>
-                  <button className={cancelButton} onClick={() => setEditing(null)}>
-                    Cancel
-                  </button>
+                <div className="flex flex-col gap-3 py-3">
+                  <Fields draft={draft} onChange={setDraft} errors={invalid} {...options} />
+                  <div className="flex justify-end gap-2">
+                    <button className={cancelButton} onClick={() => setEditing(null)}>
+                      Cancel
+                    </button>
+                    <button className={button} onClick={() => save(r.id)}>
+                      Save
+                    </button>
+                  </div>
                 </div>
               ) : pending === r.id ? (
                 <div className="flex py-3">
@@ -162,52 +173,72 @@ export default function Transactions() {
                   />
                 </div>
               ) : (
-                <div className="flex items-center gap-3 py-3">
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate">
-                      {r.title}
-                      <span className="ml-2 text-sm text-muted">
-                        {r.source ?? "unassigned"}
-                        {r.destination && ` → ${r.destination}`}
-                      </span>
+                <div className="group grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2.5 py-2.5">
+                  {/* Leading slot: direction read by angle before it is read by
+                      colour. A transfer takes the two-way arrow — it is a third
+                      kind of movement, not a debit with the sign filed off. */}
+                  {r.to_account_id ? (
+                    <ArrowsLeftRight className="size-[18px] text-muted" />
+                  ) : r.direction === "credit" ? (
+                    <ArrowIn className="size-[18px] text-credit" />
+                  ) : (
+                    <ArrowOut className="size-[18px] text-muted" />
+                  )}
+
+                  <span className="flex min-w-0 flex-col gap-0.5">
+                    <span className="truncate text-[13.5px] font-medium">{r.title}</span>
+                    <span className="truncate text-[12.5px] text-muted">
+                      {r.source ?? "unassigned"}
+                      {/* The text glyph, not the 24px icon: it scales and
+                          baselines with the 12.5px line it sits in, where the
+                          stroke icon would push the row to 60px. */}
+                      {r.destination && ` → ${r.destination}`}
+                      {r.note && ` · ${r.note}`}
                     </span>
-                    {r.note && (
-                      <span className="block truncate text-sm text-muted">{r.note}</span>
-                    )}
                   </span>
-                  {/* A transfer gets no sign: the money is still yours, it just
-                      sits somewhere else. */}
-                  <span
-                    className={`tabular-nums ${
-                      r.to_account_id
-                        ? "text-muted"
-                        : r.direction === "credit"
-                          ? "text-credit"
-                          : ""
-                    }`}
-                  >
-                    {r.to_account_id ? "" : r.direction === "credit" ? "+" : "−"}
-                    {formatAmount(r.amount, r.currency)}
+
+                  <span className="flex items-center gap-2">
+                    {/* A transfer gets no sign and drops to --muted: signless
+                        next to signed siblings only reads as broken, and the
+                        quieter weight makes the difference deliberate rather
+                        than missing. The money is still yours. */}
+                    <span
+                      className={`text-[15px] font-medium tabular-nums ${
+                        r.to_account_id
+                          ? "text-muted"
+                          : r.direction === "credit"
+                            ? "text-credit"
+                            : ""
+                      }`}
+                    >
+                      {r.to_account_id ? "" : r.direction === "credit" ? "+" : "−"}
+                      {formatAmount(r.amount, r.currency)}
+                    </span>
+                    {/* Revealed on hover, but never hidden from the keyboard —
+                        `focus-within` is what keeps them tabbable. */}
+                    <span className="flex gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+                      <button
+                        className={iconButton}
+                        onClick={() => {
+                          setPending(null);
+                          setInvalid({});
+                          setEditing(r.id);
+                          setDraft(draftOf(r));
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className={iconButton}
+                        onClick={() => {
+                          setEditing(null);
+                          setPending(r.id);
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </span>
                   </span>
-                  <button
-                    className={iconButton}
-                    onClick={() => {
-                      setPending(null);
-                      setEditing(r.id);
-                      setDraft(draftOf(r));
-                    }}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    className={iconButton}
-                    onClick={() => {
-                      setEditing(null);
-                      setPending(r.id);
-                    }}
-                  >
-                    Delete
-                  </button>
                 </div>
               )}
             </li>

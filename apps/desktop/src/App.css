@@ -2,41 +2,84 @@
 
 /* One palette, defined once as plain CSS variables and swapped by a media
    query — so a colour is written twice here instead of as a `dark:` twin on
-   every element. `color-scheme` makes the native date picker, select popup and
-   scrollbars follow along without any CSS of ours. */
+   every element. `color-scheme` makes scrollbars follow along without any CSS
+   of ours; the date picker and select popup are ours now, not the platform's.
+
+   Every surface sits inside a narrow 4–10% lightness band of the same cool
+   grey, so nothing glares after an hour. The only saturated pixels in the app
+   are the accent button, the active nav, and a signed amount. */
 :root {
   color-scheme: light dark;
-  --bg: #f6f8fb;
-  --rail: #eef2f7;
-  --surface: #ffffff;
-  --ink: #0f172a;
-  --muted: #64748b;
-  --line: #e2e8f0;
-  --accent: #2563eb;
-  --accent-ink: #ffffff;
-  --credit: #15803d;
-  --violet: #7c3aed;
-  --danger: #b3261e;
+  --bg: #f4f5f7;
+  --rail: #e9ebef;
+  --surface: #fcfcfd;
+  /* Inputs sit *below* the card they live on in light mode and above it in
+     dark, which is what keeps a field readable as a field on either theme. */
+  --field: #fdfdfe;
+  --ink: #14181c;
+  --muted: #5c666f;
+  --line: #dfe3e8;
+  --accent: #2e5fd0;
+  --accent-ink: #f7f9ff;
+  --credit: #14795a;
+  --violet: #6a4bc4;
+  --danger: #c0324a;
   /* Second categorical hue for charts. Blue+amber is the pair that clears
      CVD separation, the normal-vision floor and 3:1 on both surfaces —
      blue+violet fails protanopia (dE 5.7) and must not be used for series. */
-  --series-b: #d97706;
+  --series-b: #b45309;
+
+  /* Weak twins: tile tints, active nav fill, selected menu option. Alpha, not
+     a mixed hex, so they sit correctly on --surface and on --overlay both. */
+  --accent-weak: rgba(46, 95, 208, 0.1);
+  --credit-weak: rgba(20, 121, 90, 0.1);
+  --danger-weak: rgba(192, 50, 74, 0.09);
+  --violet-weak: rgba(106, 75, 196, 0.1);
+  --series-b-weak: rgba(180, 83, 9, 0.1);
+
+  --hover: rgba(16, 20, 26, 0.045);
+  --focus: rgba(46, 95, 208, 0.28);
+  --shadow: 0 1px 2px rgba(16, 20, 26, 0.06), 0 1px 1px rgba(16, 20, 26, 0.04);
+
+  /* The floating layer. Recipe is all three parts: --overlay surface + 1px
+     --line + --shadow-menu. Border alone fails in dark (a menu over a card is
+     two 1px lines); shadow alone fails in light (--surface on --bg is a 1.5%
+     step). Contrast on --overlay: ink 18.3:1, muted 5.9:1. */
+  --overlay: #ffffff;
+  --menu-shadow: 0 12px 28px rgba(16, 20, 26, 0.14);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #131a24;
-    --rail: #0f151d;
-    --surface: #182029;
-    --ink: #e8edf3;
-    --muted: #8b97a8;
-    --line: #263141;
-    --accent: #3b82f6;
-    --accent-ink: #ffffff;
-    --credit: #4ade80;
-    --violet: #a78bfa;
-    --danger: #f0867d;
+    --bg: #0f1113;
+    --rail: #0a0b0d;
+    --surface: #16191c;
+    --field: #101315;
+    --ink: #e8ebed;
+    --muted: #9aa3ab;
+    --line: #24282c;
+    --accent: #7aa2f7;
+    --accent-ink: #0b1020;
+    --credit: #4fb286;
+    --violet: #9b8af2;
+    --danger: #e5677a;
     --series-b: #d97706;
+
+    --accent-weak: rgba(122, 162, 247, 0.14);
+    --credit-weak: rgba(79, 178, 134, 0.13);
+    --danger-weak: rgba(229, 103, 122, 0.13);
+    --violet-weak: rgba(155, 138, 242, 0.14);
+    --series-b-weak: rgba(217, 119, 6, 0.16);
+
+    --hover: rgba(255, 255, 255, 0.045);
+    --focus: rgba(122, 162, 247, 0.32);
+    /* No drop shadow in dark: separation is 1px --line plus a +7% lightness
+       step. A shadow on a near-black surface is just a darker smudge. */
+    --shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+
+    /* +7% over --surface. Contrast on it: ink 13.4:1, muted 6.3:1. */
+    --overlay: #1e2226;
+    --menu-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
   }
 }
 
@@ -44,10 +87,19 @@
    lets the media query above re-theme already-generated classes. */
 @theme inline {
   --font-sans:
-    ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -apple-system, "SF Pro Text", ui-sans-serif, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* 588px — where five labelled nav items stop fitting a top bar. Named
+     rather than inlined because App.tsx needs it three times. */
+  --breakpoint-nav: 36.75rem;
+
   --color-bg: var(--bg);
   --color-rail: var(--rail);
   --color-surface: var(--surface);
+  --color-field: var(--field);
+  --color-overlay: var(--overlay);
   --color-violet: var(--violet);
   --color-series-b: var(--series-b);
   --color-ink: var(--ink);
@@ -57,8 +109,53 @@
   --color-accent-ink: var(--accent-ink);
   --color-credit: var(--credit);
   --color-danger: var(--danger);
+
+  --color-accent-weak: var(--accent-weak);
+  --color-credit-weak: var(--credit-weak);
+  --color-danger-weak: var(--danger-weak);
+  --color-violet-weak: var(--violet-weak);
+  --color-series-b-weak: var(--series-b-weak);
+  --color-hover: var(--hover);
+
+  --shadow-card: var(--shadow);
+  --shadow-menu: var(--menu-shadow);
 }
 
 html {
   -webkit-font-smoothing: antialiased;
+}
+
+/* Our scrollbar, for the one place a menu can overflow. The platform one is a
+   light box over a dark overlay in the WebView and `color-scheme` does not
+   reach inside a popup we drew ourselves. */
+.menu-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+.menu-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.menu-scroll::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 4px;
+}
+.menu-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* Menus open with a 4px rise. Close is instant — a fading menu that no longer
+   takes clicks reads as lag, not as polish. */
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.menu-in {
+  animation: menu-in 120ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .menu-in {
+    animation: none;
+  }
 }

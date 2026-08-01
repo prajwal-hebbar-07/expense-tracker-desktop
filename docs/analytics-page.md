@@ -3,7 +3,7 @@ id: analytics-page
 type: decision
 status: active
 updated: 2026-08-01
-links: [design-tokens, derived-balances, transaction-ledger]
+links: [summary-tile-delta, filter-row, chart-outlier, design-tokens, derived-balances, transaction-ledger]
 ---
 
 # The Analytics screen
@@ -15,7 +15,7 @@ Charts are **CSS boxes, not SVG and not a charting library**: a bar is a `div` w
 ## Rules for an agent working here
 
 1. **Never let a chart average or compare across days that have not happened.** A window whose `to` is past `TODAY` is clamped, and its comparison window becomes the same *elapsed* length rather than the previous whole calendar period. Without this a year in progress divides by 365 and reports a saving nobody made.
-2. **Colour a delta by whether it is favourable, never by its sign.** Each tile declares a `goal` (`lower` for Spent and Per day, `higher` for Received and Net) and `tone()` in `apps/desktop/src/delta.ts` derives good/bad from it. `−9%` is good news on Spent and bad news on Received; painting both red is how a dashboard teaches people to ignore it. An arrow (`↑ ↓ ≈`) carries the direction so the verdict is never colour alone, and moves under `NOISE_PCT` (5%) render muted rather than as news.
+2. **Colour a delta by whether it is favourable, never by its sign.** Each tile declares a `goal` (`lower` for Spent and Per day, `higher` for Received and Net) and `tone()` in `apps/desktop/src/delta.ts` derives good/bad from it. `−9%` is good news on Spent and bad news on Received; painting both red is how a dashboard teaches people to ignore it. A filled 9px mark carries the direction so the verdict is never colour alone, and moves under `NOISE_PCT` (5%) render muted as `flat · 2%` rather than as news. The tile itself, its marks and the no-prior-period case are [[summary-tile-delta]].
 3. **State a percentage only when the base is positive.** `change()` returns `null` for a zero base (Infinity) and for a negative one (the sign flips, so a Net improving from −₹1,000 to +₹500 would report "−150%", a fall for an outcome that got better).
 4. **Two series means a legend.** "Accounts vs cards" ships one; the single-series charts deliberately do not, because their card title names the series.
 5. **Never add a second y-axis.** Two measures of different scale are two charts.

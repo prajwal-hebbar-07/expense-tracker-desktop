@@ -236,7 +236,47 @@ export function rank(rows: Txn[], by: keyof Txn, keep = 6): Slice[] {
   return [...all.slice(0, keep), { label: "Other", amount: rest }];
 }
 
-export type Bucket = { label: string; amount: number; from: string; to: string };
+/**
+ * Categories that are one decision a year and the same figure every month.
+ *
+ * They are held out of the daily series on purpose. A ₹42,000 rent charge
+ * against a ₹5,180 median peak turns a month into one wall and thirty slivers,
+ * and a daily chart exists to show the days you can still change — rent answers
+ * none of its questions. This is not hiding: the strip above the chart states
+ * the figure before the chart does, and a tick keeps the day it fell on honest.
+ */
+export const FIXED = new Set(["Rent"]);
+
+export type Fixed = { total: number; count: number; days: Set<string>; labels: string[] };
+
+/** Splits the fixed charges out of a window's debits. When nothing is tagged
+ *  fixed the chart falls back to plotting everything, which is correct — there
+ *  is nothing to hold out. */
+export function splitFixed(rows: Txn[]): { variable: Txn[]; fixed: Fixed } {
+  const variable: Txn[] = [];
+  const held: Txn[] = [];
+  for (const t of rows) (FIXED.has(t.category) ? held : variable).push(t);
+  return {
+    variable,
+    fixed: {
+      total: sum(held.filter((t) => t.direction === "debit")),
+      count: held.length,
+      days: new Set(held.map((t) => t.date)),
+      // Deduplicated: "rent, rent, rent" for a quarter is one fact stated once.
+      labels: [...new Set(held.map((t) => t.title.toLowerCase()))],
+    },
+  };
+}
+
+export type Bucket = {
+  label: string;
+  amount: number;
+  from: string;
+  to: string;
+  /** Debits folded into this bucket. The tooltip's third line — "₹3,560 over 4
+   *  transactions" is a different day from "₹3,560 on one". */
+  count: number;
+};
 
 /** Spend per bucket across the window. Day buckets up to a month, then weeks,
  *  then months — so a bar is never one pixel wide. */
@@ -256,6 +296,7 @@ export function buckets(rows: Txn[], w: Window): Bucket[] {
         from: iso(b0),
         to: iso(b1) > w.to ? w.to : iso(b1),
         amount: 0,
+        count: 0,
       });
     }
   } else {
@@ -267,6 +308,7 @@ export function buckets(rows: Txn[], w: Window): Bucket[] {
         from,
         to: to > w.to ? w.to : to,
         amount: 0,
+        count: 0,
       });
     }
   }
@@ -274,7 +316,10 @@ export function buckets(rows: Txn[], w: Window): Bucket[] {
   for (const t of rows) {
     if (t.direction !== "debit") continue;
     const b = out.find((x) => t.date >= x.from && t.date <= x.to);
-    if (b) b.amount += t.amount;
+    if (b) {
+      b.amount += t.amount;
+      b.count++;
+    }
   }
   return out;
 }

@@ -11,6 +11,7 @@ import {
   daysBetween,
   previous,
   rank,
+  splitFixed,
   totals,
   within,
   windowFor,
@@ -98,4 +99,56 @@ test("credits never count as spending", () => {
     undefined,
   );
   assert.equal(t.net, t.received - t.spent);
+});
+
+// The chart holds fixed charges out of the daily series. That is only honest as
+// long as the two halves still add up to the whole and the held-out days are
+// still named — a split that loses money, or loses the day it happened on, is
+// the "hiding" the treatment was chosen to avoid.
+test("the split loses nothing", () => {
+  const win = windowFor("month", 1, TODAY);
+  const rows = within(FEED, win);
+  const { variable, fixed } = splitFixed(rows);
+
+  const spent = (xs: typeof rows) =>
+    xs.filter((t) => t.direction === "debit").reduce((s, t) => s + t.amount, 0);
+
+  assert.equal(variable.length + fixed.count, rows.length, "no row is dropped");
+  assert.equal(
+    spent(variable) + fixed.total,
+    spent(rows),
+    "variable + fixed is the whole month's spending",
+  );
+});
+
+test("a held-out charge keeps its day, so the tick has somewhere to land", () => {
+  const win = windowFor("month", 1, TODAY);
+  const { fixed } = splitFixed(within(FEED, win));
+  assert.ok(fixed.count > 0, "the feed books rent on the 1st");
+  for (const day of fixed.days) {
+    assert.ok(day >= win.from && day <= win.to, `${day} is inside the window`);
+    assert.ok(
+      buckets(within(FEED, win), win).some((b) => day >= b.from && day <= b.to),
+      `${day} falls in a bucket the tick can mark`,
+    );
+  }
+});
+
+test("holding out a charge lowers the peak the axis is scaled to", () => {
+  // The whole reason for the treatment: one ₹42,000 wall flattens thirty days
+  // of variable spending into slivers.
+  const win = windowFor("month", 1, TODAY);
+  const rows = within(FEED, win);
+  const peak = (xs: typeof rows) => Math.max(...buckets(xs, win).map((b) => b.amount));
+  assert.ok(peak(splitFixed(rows).variable) < peak(rows));
+});
+
+test("nothing tagged fixed is a valid split, not a crash", () => {
+  const rows = within(FEED, windowFor("month", 1, TODAY)).filter(
+    (t) => t.category !== "Rent",
+  );
+  const { variable, fixed } = splitFixed(rows);
+  assert.equal(fixed.count, 0);
+  assert.equal(fixed.total, 0);
+  assert.equal(variable.length, rows.length, "the chart falls back to plotting everything");
 });

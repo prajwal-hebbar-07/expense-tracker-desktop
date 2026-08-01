@@ -16,7 +16,7 @@ export default function UpdateBanner() {
   return (
     <div
       role="status"
-      className="flex flex-wrap items-center gap-3 border-b border-line bg-accent/10 px-4 py-2.5 text-sm"
+      className="flex flex-wrap items-center gap-3 border-b border-line bg-accent-weak px-4 py-2.5 text-sm"
     >
       <Info className="size-4 shrink-0 text-accent" />
 

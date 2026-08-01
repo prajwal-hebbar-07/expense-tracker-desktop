@@ -3,7 +3,7 @@ id: self-transfer
 type: decision
 status: active
 updated: 2026-07-31
-links: [transaction-ledger, derived-balances, persistence-sqlite]
+links: [custom-select, transaction-ledger, derived-balances, persistence-sqlite]
 ---
 
 # Moving money between your own accounts
@@ -22,7 +22,7 @@ The obvious design — a debit row on the source plus a credit row on the destin
 4. **Keep the destination arm first in the `ACCOUNT_BALANCES` CASE.** For the destination account the row is money *in* regardless of `direction`; put the `direction = 'credit'` arm first and every transfer subtracts from both accounts.
 5. **Reject a transfer whose two sides are the same account** (`toParams` does). One row joined to one account group adds and subtracts within the same `SUM` and books nothing, silently.
 6. **Both sides must be bank accounts.** A card holds no money — paying a card bill is a separate, still-unbuilt feature, not a transfer.
-7. **Show a transfer without a `+`/`−` sign**, because the user has not gained or lost anything; the list renders it as `HDFC → ICICI` in muted type.
+7. **Show a transfer without a `+`/`−` sign**, because the user has not gained or lost anything; the list renders it as `HDFC → ICICI` in muted type, with a muted amount and an arrow-left-right glyph in the row's leading slot. The signless amount only reads as "broken" next to signed ones; dropping it to `--muted` makes the difference deliberate instead of missing.
 
 ## Contract
 
@@ -44,7 +44,9 @@ LEFT JOIN expense e ON e.account_id = a.id OR e.to_account_id = a.id
 
 A transfer matches the join twice, but as two different `a` rows, so each group counts it once.
 
-`INSERT_TRANSACTION` and `UPDATE_TRANSACTION` now take **nine** parameters; `to_account_id` is `$9` and `UPDATE` appends the id as `$10`. In the UI (`apps/desktop/src/transactionForm.tsx`) `Draft.direction` has a third value, `"transfer"`, which exists only in the form — `toParams` maps it to `direction: "debit"` plus `to_account_id`. `Draft.to` holds the destination account id as a string.
+`INSERT_TRANSACTION` and `UPDATE_TRANSACTION` now take **nine** parameters; `to_account_id` is `$9` and `UPDATE` appends the id as `$10`. In the UI (`apps/desktop/src/transactionForm.ts`) `Draft.direction` has a third value, `"transfer"`, which exists only in the form — `toParams` maps it to `direction: "debit"` plus `to_account_id`. `Draft.to` holds the destination account id as a string.
+
+`toParams` returns `{ errors }` keyed by field (`amount` | `title` | `source` | `to`), not a single message — the form captions each control. The two-different-accounts rule sets `source: ""` and `to: "Pick two different accounts."`: both selects are flagged, the sentence is said once. See [[custom-select]] rule 6.
 
 | Figure | Effect of a transfer |
 |---|---|

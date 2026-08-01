@@ -34,6 +34,20 @@ export function tone(pct: number, goal: Goal): Tone {
   return pct > 0 === (goal === "higher") ? "good" : "bad";
 }
 
-/** Arrow prefix, so the tone is never carried by colour alone. */
-export const arrow = (pct: number): string =>
-  Math.abs(pct) < NOISE_PCT ? "≈" : pct > 0 ? "↑" : "↓";
+/**
+ * Which way the arithmetic went, so the tone is never carried by colour alone.
+ *
+ * Deliberately a different axis from `tone`: the mark reports the sign, the
+ * colour reports the verdict, and neither is asked to do both. Spent ↑30% and
+ * Net ↓48% are opposite marks in the same red, which is the point.
+ */
+export const direction = (pct: number): "up" | "down" | "flat" =>
+  Math.abs(pct) < NOISE_PCT ? "flat" : pct > 0 ? "up" : "down";
+
+/** The verdict, spelled out. Screen readers get it in the label, so colour is
+ *  never the only carrier of "is this good news". */
+export const VERDICT: Record<Tone, string> = {
+  good: "better",
+  bad: "worse",
+  flat: "about the same",
+};
