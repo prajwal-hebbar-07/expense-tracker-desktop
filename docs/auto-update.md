@@ -2,7 +2,7 @@
 id: auto-update
 type: decision
 status: active
-updated: 2026-08-01
+updated: 2026-08-02
 links: [stack, persistence-sqlite, derived-balances]
 ---
 
@@ -17,7 +17,7 @@ This is **the app's only outbound call**, and it is a deliberate exception to th
 ## Rules for an agent working here
 
 1. **Never break the version chain.** An installed build can only update itself if *it* already contains the updater. `0.1.0` is the first build that does, so the first update it can accept is `0.1.1`.
-2. **Bump the version in all three of `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`.** The bundler reads `tauri.conf.json` and it wins; a mismatch produces artifacts labelled one version and reporting another. `Cargo.lock` follows on the next build.
+2. **Bump the version in all four of `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.lock`.** The bundler reads `tauri.conf.json` and it wins; a mismatch produces artifacts labelled one version and reporting another. The `Cargo.lock` entry is the `desktop` package's own `version`, and leaving it stale is what makes a later `--locked` build fail. The release workflow does all four; do it by hand only when releasing by hand.
 3. **Never commit the private key.** It lives at `~/.tauri/expenses-updater.key`, outside the repo, mode `600`. Losing it means no existing install can ever be updated again — the public key baked into every shipped binary will reject anything signed by a new keypair.
 4. **Never change `pubkey` in `tauri.conf.json` without reissuing every install by hand.** Installed builds trust that key and nothing else.
 5. **Build with `--bundles app,updater` when you only need the update artifact.** The DMG step fails if a previous volume is still mounted or `target/release/bundle/dmg/` holds output from an earlier run, and **it aborts the build before the updater tarball is regenerated** — leaving a stale `.tar.gz` from the previous version that looks current by timestamp. Check the version inside it before publishing.
@@ -44,22 +44,20 @@ Frontend: `apps/desktop/src/update.ts` (`useUpdate()` — check on mount, downlo
 
 ### Cutting a release — automated
 
-Push a tag; CI does the rest.
+Entirely from the browser. **Actions → release → Run workflow**, choose `patch`, `minor` or `major`, Run. There is nothing to do locally, and no tag to push by hand — the trigger is `workflow_dispatch` only.
 
-```bash
-# bump the version in apps/desktop/package.json AND src-tauri/tauri.conf.json
-git commit -am "chore: 0.1.1" && git push
-git tag v0.1.1 && git push origin v0.1.1
-```
+`.github/workflows/release.yml` runs on `macos-latest` (Apple Silicon), installs, runs the checks, **then** computes the next version from `tauri.conf.json` and rewrites it in all four files (rule 2), commits as `chore(release): <version>`, tags `v<version>`, pushes both, and hands off to `tauri-apps/tauri-action@v1`, which builds, signs, creates the release and uploads the updater JSON. A fresh checkout also removes the stale-payload trap in rule 5 — CI cannot reuse an artifact from a previous version.
 
-`.github/workflows/release.yml` runs on `macos-latest` (Apple Silicon), refuses to continue if the tag and `tauri.conf.json` version disagree, runs the checks, then hands off to `tauri-apps/tauri-action@v1`, which builds, signs, creates the release and uploads the updater JSON. A fresh checkout also removes the stale-payload trap in rule 5 — CI cannot reuse an artifact from a previous version.
+Order is load-bearing: the checks run **before** the bump so a red test never leaves a version commit pushed, and the bump edits one line per file by regex rather than round-tripping the JSON, so a release commit never reformats a file it did not mean to touch.
 
-Two repository secrets are required (Settings → Secrets and variables → Actions):
+⚠ The run pushes a commit to the branch it was dispatched from. `git pull` locally afterwards, or the next local commit conflicts on four files. Branch protection requiring a PR would reject that push — the job fails at the `git push`, before anything is published.
+
+One repository secret is required (Settings → Secrets and variables → Actions):
 
 | Secret | Value |
 |---|---|
 | `TAURI_SIGNING_PRIVATE_KEY` | the **contents** of `~/.tauri/expenses-updater.key` (`pbcopy < ~/.tauri/expenses-updater.key`) |
-| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | empty — the key was generated without one |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | the key has no password. ⚠ GitHub refuses to store an empty secret value, so this one cannot exist as written; if the CLI stalls or errors on the password, replace the `${{ secrets… }}` reference in the workflow with a literal `""` |
 
 ⚠ **Verify the updater JSON's asset name on the first release.** The endpoint in `tauri.conf.json` ends in `/latest.json`; if `uploadUpdaterJson` names the asset something else, either rename the asset or change the endpoint to match. Nothing fails loudly — the check just finds nothing, forever.
 
@@ -130,5 +128,7 @@ Notarisation would remove both warnings and needs a paid Apple Developer account
 | Banner never appears | Version in the manifest is not greater than the installed one, or the platform key does not match (`darwin-aarch64` vs `darwin-x86_64`) | Check both; the check itself is silent on failure by design |
 | Update downloads then fails to install | Signature does not match the `pubkey` in the installed build | The install was built with a different keypair; reinstall by hand |
 | Downloaded build reports "damaged" and will not open | `signingIdentity: "-"` missing from `bundle.macOS` | Restore it; see Gatekeeper above |
-| CI release job fails immediately | Tag and `tauri.conf.json` version disagree | The guard step is doing its job — bump one or retag |
+| CI fails at `Commit and tag the bump` | Branch protection rejects a direct push, or the version line moved and a regex found no match | Allow the bot to push, or fix the pattern; nothing is published either way |
+| CI fails inside `tauri-action` after the build, `a public key has been found, but no private key` | `TAURI_SIGNING_PRIVATE_KEY` secret missing or misnamed | Add it; the value is the file's contents, not its path |
+| CI fails creating the release with `403` | Repo default `GITHUB_TOKEN` permission is read-only | Settings → Actions → General → Workflow permissions → Read and write |
 | Update installs but the app opens an empty ledger | `identifier` changed, so the data directory moved | Never change it — [[stack]] rule 7 |

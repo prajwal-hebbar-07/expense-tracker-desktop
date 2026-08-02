@@ -1,19 +1,22 @@
-# Push a tag, get a signed release the installed app can update itself from.
-#
-#   git tag v0.1.1 && git push origin v0.1.1
-#
-# tauri-action builds, signs the updater payload, creates the GitHub release and
-# uploads the updater JSON alongside the bundles. Doing it here rather than on a
-# laptop also removes the stale-payload trap: a fresh checkout cannot reuse an
-# artifact from a previous version's build.
+# Cut a release entirely from the browser: Actions -> release -> Run workflow,
+# pick patch / minor / major. The workflow bumps the version in every file that
+# carries it, commits and tags that bump, then builds, signs and publishes the
+# release the installed app updates itself from. Nothing happens on a laptop, so
+# a fresh checkout also removes the stale-payload trap in docs/auto-update.md
+# rule 5 — CI cannot reuse an artifact from a previous version.
 name: release
 
 on:
-  push:
-    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Which part of the version to increase
+        type: choice
+        options: [patch, minor, major]
+        default: patch
 
 permissions:
-  contents: write # create the release and upload assets
+  contents: write # push the bump commit and its tag, create the release
 
 jobs:
   release:
@@ -22,6 +25,8 @@ jobs:
     runs-on: macos-latest
 
     steps:
+      # The default token is persisted in .git/config, which is what later lets
+      # the bump commit push back to the branch this was dispatched from.
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4 # version comes from packageManager in package.json
@@ -39,19 +44,57 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # The tag is what users see; tauri.conf.json is what the updater compares.
-      # If they disagree, the release is labelled one version and reports
-      # another, and no installed app will ever accept it.
-      - name: Tag must match the version in tauri.conf.json
-        run: |
-          version=$(python3 -c "import json;print(json.load(open('apps/desktop/src-tauri/tauri.conf.json'))['version'])")
-          if [ "v$version" != "${{ github.ref_name }}" ]; then
-            echo "tag ${{ github.ref_name }} does not match version $version"
-            exit 1
-          fi
-
+      # Before the bump, so a red test never leaves a version commit pushed.
       - run: pnpm --filter desktop test
       - run: pnpm typecheck
+
+      # tauri.conf.json is the source of truth — the bundler reads it and the
+      # updater compares it. The other three only have to agree with it.
+      - name: Bump the version
+        id: bump
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, re
+
+          conf = pathlib.Path("apps/desktop/src-tauri/tauri.conf.json")
+          major, minor, patch = (int(p) for p in json.loads(conf.read_text())["version"].split("."))
+          new = {
+              "major": f"{major + 1}.0.0",
+              "minor": f"{major}.{minor + 1}.0",
+              "patch": f"{major}.{minor}.{patch + 1}",
+          }[os.environ["BUMP"]]
+
+          # Rewrite one line per file rather than round-tripping the JSON, so a
+          # release commit never reformats a file it did not mean to touch.
+          for path, pattern in [
+              (conf, r'("version":\s*")[^"]+'),
+              (pathlib.Path("apps/desktop/package.json"), r'("version":\s*")[^"]+'),
+              (pathlib.Path("apps/desktop/src-tauri/Cargo.toml"), r'(?m)^(version = ")[^"]+'),
+              # Cargo.lock carries the crate's own version too; leaving it stale
+              # is what makes a later --locked build fail.
+              (pathlib.Path("apps/desktop/src-tauri/Cargo.lock"), r'(name = "desktop"\nversion = ")[^"]+'),
+          ]:
+              text = path.read_text()
+              text, n = re.subn(pattern, lambda m: m.group(1) + new, text, count=1)
+              assert n == 1, f"no version to replace in {path}"
+              path.write_text(text)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"version={new}\n")
+          PY
+
+      - name: Commit and tag the bump
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(release): $VERSION"
+          git tag "v$VERSION"
+          git push origin "HEAD:${{ github.ref_name }}"
+          git push origin "v$VERSION"
 
       - uses: tauri-apps/tauri-action@v1
         env:
@@ -63,8 +106,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: apps/desktop
-          tagName: ${{ github.ref_name }}
-          releaseName: Khata ${{ github.ref_name }}
+          tagName: v${{ steps.bump.outputs.version }}
+          releaseName: Khata v${{ steps.bump.outputs.version }}
           # Must not be a draft or a prerelease: the updater endpoint resolves
           # /releases/latest/, which skips both.
           releaseDraft: false
