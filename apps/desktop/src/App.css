@@ -1,0 +1,186 @@
+@import "tailwindcss";
+
+/* One palette, defined once as plain CSS variables and swapped by a media
+   query — so a colour is written twice here instead of as a `dark:` twin on
+   every element. `color-scheme` makes scrollbars follow along without any CSS
+   of ours; the date picker and select popup are ours now, not the platform's.
+
+   Every surface sits inside a narrow 4–10% lightness band of the same cool
+   grey, so nothing glares after an hour. The only saturated pixels in the app
+   are the accent button, the active nav, and a signed amount. */
+:root {
+  color-scheme: light dark;
+  --bg: #f4f5f7;
+  --rail: #e9ebef;
+  --surface: #fcfcfd;
+  /* Inputs sit *below* the card they live on in light mode and above it in
+     dark, which is what keeps a field readable as a field on either theme. */
+  --field: #fdfdfe;
+  --ink: #14181c;
+  --muted: #5c666f;
+  --line: #dfe3e8;
+  --accent: #0e7a57;
+  --accent-ink: #f2fbf7;
+  /* An alias, not a colour. Money in and "the app" are the same green now, so
+     a credit amount and the primary button agree by construction rather than
+     by two hexes that have to be kept in step. Keep the name: `text-credit` at
+     a call site says *why* it is that colour, which `text-accent` does not. */
+  --credit: var(--accent);
+  --violet: #6a4bc4;
+  --danger: #c0324a;
+  /* Second categorical hue for charts, paired with --accent. Green+blue clears
+     3:1 on both surfaces and separates well for the common red–green
+     deficiencies (ΔE 56–84), but the two collapse under tritanopia (ΔE ~1.5)
+     — which is why the legend in `Split` carries each series' name and figure
+     and is not decoration. Violet is not a series colour: it fails protanopia
+     against blue. All of it is measured in `series-contrast.check.ts`; re-run
+     that before changing either hue. */
+  --series-b: #2e5fd0;
+  /* Amber, freed up when the accent went green. A caution state — never a
+     series hue, or it lands next to --series-b and reads as a third series. */
+  --warn: #b45309;
+
+  /* Weak twins: tile tints, active nav fill, selected menu option. Alpha, not
+     a mixed hex, so they sit correctly on --surface and on --overlay both. */
+  --accent-weak: rgba(14, 122, 87, 0.1);
+  --credit-weak: var(--accent-weak);
+  --danger-weak: rgba(192, 50, 74, 0.09);
+  --violet-weak: rgba(106, 75, 196, 0.1);
+  --series-b-weak: rgba(46, 95, 208, 0.1);
+  --warn-weak: rgba(180, 83, 9, 0.1);
+
+  --hover: rgba(16, 20, 26, 0.045);
+  --focus: rgba(14, 122, 87, 0.28);
+  --shadow: 0 1px 2px rgba(16, 20, 26, 0.06), 0 1px 1px rgba(16, 20, 26, 0.04);
+
+  /* The floating layer. Recipe is all three parts: --overlay surface + 1px
+     --line + --shadow-menu. Border alone fails in dark (a menu over a card is
+     two 1px lines); shadow alone fails in light (--surface on --bg is a 1.5%
+     step). Contrast on --overlay: ink 18.3:1, muted 5.9:1. */
+  --overlay: #ffffff;
+  --menu-shadow: 0 12px 28px rgba(16, 20, 26, 0.14);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1113;
+    --rail: #0a0b0d;
+    --surface: #16191c;
+    --field: #101315;
+    --ink: #e8ebed;
+    --muted: #9aa3ab;
+    --line: #24282c;
+    --accent: #4fd1a5;
+    --accent-ink: #06231a;
+    --credit: var(--accent);
+    --violet: #9b8af2;
+    --danger: #e5677a;
+    --series-b: #7aa2f7;
+    --warn: #d97706;
+
+    --accent-weak: rgba(79, 209, 165, 0.14);
+    --credit-weak: var(--accent-weak);
+    --danger-weak: rgba(229, 103, 122, 0.13);
+    --violet-weak: rgba(155, 138, 242, 0.14);
+    --series-b-weak: rgba(122, 162, 247, 0.16);
+    --warn-weak: rgba(217, 119, 6, 0.16);
+
+    --hover: rgba(255, 255, 255, 0.045);
+    --focus: rgba(79, 209, 165, 0.32);
+    /* No drop shadow in dark: separation is 1px --line plus a +7% lightness
+       step. A shadow on a near-black surface is just a darker smudge. */
+    --shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+
+    /* +7% over --surface. Contrast on it: ink 13.4:1, muted 6.3:1. */
+    --overlay: #1e2226;
+    --menu-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+  }
+}
+
+/* `inline` so the utilities resolve to var(--bg) at use time, which is what
+   lets the media query above re-theme already-generated classes. */
+@theme inline {
+  --font-sans:
+    -apple-system, "SF Pro Text", ui-sans-serif, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* 588px — where five labelled nav items stop fitting a top bar. Named
+     rather than inlined because App.tsx needs it three times. */
+  --breakpoint-nav: 36.75rem;
+
+  --color-bg: var(--bg);
+  --color-rail: var(--rail);
+  --color-surface: var(--surface);
+  --color-field: var(--field);
+  --color-overlay: var(--overlay);
+  --color-violet: var(--violet);
+  --color-series-b: var(--series-b);
+  --color-warn: var(--warn);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-credit: var(--credit);
+  --color-danger: var(--danger);
+
+  --color-accent-weak: var(--accent-weak);
+  --color-credit-weak: var(--credit-weak);
+  --color-danger-weak: var(--danger-weak);
+  --color-violet-weak: var(--violet-weak);
+  --color-series-b-weak: var(--series-b-weak);
+  --color-warn-weak: var(--warn-weak);
+  --color-hover: var(--hover);
+
+  --shadow-card: var(--shadow);
+  --shadow-menu: var(--menu-shadow);
+}
+
+/* Short-window variant. macOS quarter-tiles a 13" screen into a ~410px-tall
+   window, and the vertical rhythm that reads as generous at 900px tall spends
+   half of that before the first number. Declared after the built-ins so
+   `short:py-4` wins over `sm:py-10` on source order rather than by `!`.
+
+   640, not 700: the default window is 720 tall, which is a 692px viewport, and
+   a threshold above that would compress the one size the app opens at. */
+@custom-variant short (@media (height < 40rem));
+
+html {
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Our scrollbar, for the one place a menu can overflow. The platform one is a
+   light box over a dark overlay in the WebView and `color-scheme` does not
+   reach inside a popup we drew ourselves. */
+.menu-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+.menu-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.menu-scroll::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 4px;
+}
+.menu-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* Menus open with a 4px rise. Close is instant — a fading menu that no longer
+   takes clicks reads as lag, not as polish. */
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.menu-in {
+  animation: menu-in 120ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .menu-in {
+    animation: none;
+  }
+}

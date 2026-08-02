@@ -32,7 +32,7 @@ Install:
 pnpm add -Dw turbo
 ```
 
-⚠ Version not pinned here — check the installed major before relying on the shapes below. Turbo **2.0 renamed the `pipeline` key to `tasks`**; a config using `pipeline` fails on 2.x with a schema error. Everything below assumes 2.x.
+Installed version is **2.10.7** (resolved 2026-07-31 from `^2`). Turbo **2.0 renamed the `pipeline` key to `tasks`**; a config using `pipeline` fails on 2.x with a schema error. Everything below assumes 2.x and is confirmed working on 2.10.7.
 
 `turbo.json` at the repo root:
 
@@ -124,6 +124,7 @@ Present at the root and inside each package. Turbo writes per-task logs and cach
 |---|---|---|
 | `pnpm dev` starts Vite but no native window opens | The `dev` script in `apps/desktop/package.json` is still `vite`, not `tauri dev` | Apply the scripts contract above |
 | Vite exits immediately, "Port 1420 is already in use" | Two Vite servers: turbo started one and `beforeDevCommand` started another | Ensure `dev` = `tauri dev` and `beforeDevCommand` = `pnpm vite:dev`. Do not change the port — [[stack]] pins it |
+| Same "Port 1420 is already in use", but the scripts and `beforeDevCommand` are correct | A Vite child orphaned by a previous run. Killing `tauri dev` or the app binary does **not** kill Vite — it was spawned by `beforeDevCommand` and is reparented, so `pkill -f "tauri dev"` and `pkill -f "target/debug/desktop"` both leave it holding the port | `lsof -ti:1420 \| xargs kill -9`. Check with `lsof -ti:1420` before blaming config — an empty result means the cause really is the row above |
 | `pnpm dev` recurses / spawns endlessly | `beforeDevCommand` left as `pnpm dev` while `dev` became `tauri dev` | Repoint it at `pnpm vite:dev` |
 | `turbo typecheck` prints success instantly, checks nothing | No `typecheck` script in the app; turbo skips missing scripts and exits 0 | Add the script, then re-run. Verify with `turbo typecheck --dry=json` |
 | `turbo: command not found` at the root | Installed with `--filter desktop` instead of `-Dw` | `pnpm add -Dw turbo` |
@@ -131,3 +132,4 @@ Present at the root and inside each package. Turbo writes per-task logs and cach
 | Schema error mentioning `pipeline` | `turbo.json` written for turbo 1.x | Rename the key to `tasks` (2.0+) |
 | Tasks behave inconsistently between runs, stale results | Turbo daemon holding bad state | `turbo daemon stop`, re-run |
 | Turbo reports a cache miss on every run | A non-deterministic file inside the task's inputs (a log, `.DS_Store`, a timestamped artifact) | Inspect with `turbo build --dry=json` and narrow `inputs` |
+| `pnpm dev` redirected to a file produces an empty log while the build is plainly running | Turbo buffers child output when stdout is not a TTY; a persistent task may flush nothing until it exits | Do not conclude the build is stuck. Check `ps` for `cargo`/`rustc`, or run `pnpm --filter desktop dev` to bypass turbo and get unbuffered output |
