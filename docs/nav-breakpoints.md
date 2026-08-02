@@ -3,7 +3,7 @@ id: nav-breakpoints
 type: decision
 status: active
 updated: 2026-08-02
-links: [design-tokens, filter-row, brand-ledgerflow]
+links: [design-tokens, filter-row, brand-ledgerflow, brand-assets]
 ---
 
 # Navigation at five items
@@ -15,6 +15,8 @@ At 13.5px the labels are: Overview 112 · Transactions 134 · Analytics 108 · R
 The longer name does **not** move a breakpoint: at `md` (768) the bar has 744 usable and needs 562 + 132 = 694, leaving 50px. Anything longer than about "LedgerFlowXX" would break `md` first, not `nav` — re-measure before renaming again.
 
 The wordmark is what gives, and it costs nothing: this is a single-window app, the OS title bar already says LedgerFlow, and the `<h1>` under the bar names the screen.
+
+The icon mark added beside the wordmark on 2026-08-02 is `lg`-only for the same budget: 24px plus an 8px gap is 32 of the 50px headroom at `md`, and the measurement above assumes it is not there. In the rail the column is 216px and the constraint does not exist.
 
 ## Rules for an agent working here
 
@@ -35,7 +37,7 @@ The wordmark is what gives, and it costs nothing: this is a single-window app, t
 
 ## Contract
 
-`App.tsx`: `lg:grid lg:grid-cols-[13.5rem_1fr]` on the shell and `lg:flex-col` on the nav are a pair. The wordmark is `hidden md:block`. Each item is `size-11` (44px) below `nav`, then `nav:h-9 nav:px-2.5`. Labels are `hidden nav:inline`.
+`App.tsx`: `lg:grid lg:grid-cols-[13.5rem_1fr]` on the shell and `lg:flex-col` on the nav are a pair. The wordmark is `hidden md:block lg:flex`, and the mark inside it is `hidden size-6 lg:block` on `<img src="/icon.png" alt="">`. Each item is `size-11` (44px) below `nav`, then `nav:h-9 nav:px-2.5`. Labels are `hidden nav:inline`.
 
 Adding a sixth destination invalidates the 562px measurement above. Re-measure before assuming the `nav` breakpoint still holds.
 
@@ -46,4 +48,5 @@ Adding a sixth destination invalidates the 562px measurement above. Re-measure b
 | Labels overlap between 520 and 588 | The old 520 rule restored | Rule 3 |
 | Sidebar overlaps content, or tabs vanish | `lg:grid-cols-[13.5rem_1fr]` and `lg:flex-col` changed apart | Rule 1 |
 | Wordmark reappears at 620 and pushes Settings off | `hidden md:block` weakened to `sm:block` | Rule 1 |
+| Settings clipped at 768–800 | The mark's `lg:block` weakened to `md:block` — 32px it does not have | Keep the mark rail-only, or re-measure |
 | Screen reader reads "button" with no name below 588 | `aria-label` dropped when the span was hidden | Rule 4 |

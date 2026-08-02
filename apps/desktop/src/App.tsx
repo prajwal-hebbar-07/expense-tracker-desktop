@@ -56,8 +56,14 @@ function App() {
           <div className="flex h-[52px] items-center gap-4 px-3 lg:h-full lg:flex-col lg:items-stretch lg:gap-0 lg:px-3 lg:py-4">
             {/* Hidden between 588 and 767: five labelled items need all 588 of
                 a 620px window's bar, and the wordmark is the one item that is
-                not a destination. */}
-            <p className="hidden px-2 pb-3.5 text-sm font-semibold tracking-[-0.01em] md:block lg:pt-1">
+                not a destination.
+
+                The mark is rail-only. At md the bar has 50px of headroom over
+                the measured 694, and a 24px tile plus its gap spends most of
+                it; the rail has a whole 216px column. alt="" because the text
+                beside it already says LedgerFlow — a name here reads twice. */}
+            <p className="hidden px-2 pb-3.5 text-sm font-semibold tracking-[-0.01em] md:block lg:flex lg:items-center lg:gap-2 lg:pt-1">
+              <img src="/icon.png" alt="" className="hidden size-6 lg:block" />
               LedgerFlow
             </p>
             <nav className="flex flex-1 justify-between gap-1 lg:flex-none lg:flex-col lg:justify-start lg:gap-1">

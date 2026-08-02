@@ -3,7 +3,7 @@ id: brand-assets
 type: decision
 status: active
 updated: 2026-08-02
-links: [brand-ledgerflow, icon-vector-source, repo-layout]
+links: [brand-ledgerflow, icon-vector-source, repo-layout, nav-breakpoints]
 ---
 
 # The brand masters are two PNGs in `assets/`
@@ -16,10 +16,11 @@ Two masters, two jobs: `assets/icon.png` is square and is the only input to the 
 
 1. **Replace `assets/icon.png`, then regenerate — never hand-edit a file under `src-tauri/icons/`.** All eighteen are generated from it, and `icon.icns` is what macOS actually shows. Editing one leaves the other seventeen stale.
 2. **A new icon master must be square with a transparent background before it reaches `tauri icon`.** The tool letterboxes a non-square input and bakes any background colour into the `.icns`, which shows up as a white box behind the Dock tile.
-3. **Do not put `assets/logo.png` anywhere dark.** The wordmark is near-black navy on transparent — it disappears on a dark background. It is a light-surface asset: the README, a light landing page. The nav wordmark stays live text ([[nav-breakpoints]] measures it), not this image.
-4. **The favicon is `apps/desktop/public/icon.png` at 256px**, referenced from `apps/desktop/index.html`. Vite only serves `<link href>` targets out of `public/`, so a path anywhere else silently 404s in dev and ships a blank tab icon.
-5. **Delete `icons/android/` and `icons/ios/` after every regeneration.** `tauri icon` emits both unasked; this is a desktop app, and 30 unused mipmaps are noise in every future diff.
-6. **⚠ Re-check a 64px downscale after any new master.** The render is raster, not vector, so a source that reads well at 1024 can turn to mush at Dock size — a failure vector the SVG source did not have. `sips -z 64 64` a copy and look at it.
+3. **Do not put `assets/logo.png` anywhere dark.** The wordmark is near-black navy on transparent — it disappears on a dark background. It is a light-surface asset: the README, a light landing page. The app's own surfaces are dark, so what goes in the nav is the square mark plus live text, never this lockup.
+4. **`apps/desktop/public/icon.png` at 256px is both the favicon and the nav mark**, referenced from `apps/desktop/index.html` and from the wordmark `<p>` in `App.tsx`. Vite only serves `<link href>` targets out of `public/`, so a path anywhere else silently 404s in dev and ships a blank tab icon. One file for both is deliberate — a second copy at a second size is a second thing to forget on the next brand change.
+5. **The nav mark is `lg`-only, and that is a width budget, not taste.** [[nav-breakpoints]] measures the top bar to 50px of headroom at `md`; the mark and its gap cost 32 of it.
+6. **Delete `icons/android/` and `icons/ios/` after every regeneration.** `tauri icon` emits both unasked; this is a desktop app, and 30 unused mipmaps are noise in every future diff.
+7. **⚠ Re-check a 64px downscale after any new master.** The render is raster, not vector, so a source that reads well at 1024 can turn to mush at Dock size — a failure vector the SVG source did not have. `sips -z 64 64` a copy and look at it.
 
 ## Contract
 
@@ -57,5 +58,6 @@ where `crop.html` is a 1024×1024 `overflow:hidden` div holding the render posit
 | White or black box behind the Dock tile | Master had no alpha, or `--default-background-color=00000000` was omitted | Re-render; confirm alpha before running `tauri icon` |
 | Icon looks blurry or muddy at Dock size | Raster master downscaled past its detail | Rule 6; a higher-resolution master, not a sharpen |
 | Wordmark invisible in the UI | `assets/logo.png` placed on a dark surface | Rule 3 |
-| Blank favicon in `pnpm dev` | Favicon moved out of `apps/desktop/public/` | Rule 4 |
-| 30 android/ios files in the diff | `tauri icon` ran without the cleanup | Rule 5 |
+| Blank favicon, or a broken image in the nav rail | `icon.png` moved out of `apps/desktop/public/` | Rule 4 |
+| Settings clipped off the top bar at 768–800 | The nav mark's `lg:block` weakened to `md:block` | Rule 5 |
+| 30 android/ios files in the diff | `tauri icon` ran without the cleanup | Rule 6 |
