@@ -19,7 +19,8 @@ Twenty-four nodes is past the point where the graph needs one. Start from the qu
 | What does a ledger row look like, and why? | [[card-movement]], [[debit-red]] |
 | Anything about a credit card | [[card-movement]], [[card-due-day]] |
 | What colour / size / shape do I use? | [[design-tokens]], [[accent-green]] |
-| What is the app called, and where is its icon from? | [[brand-ledgerflow]] |
+| What is the app called, and what does its icon depict? | [[brand-ledgerflow]] |
+| Where are the logo and icon files, and how do I change them? | [[brand-assets]] |
 | How do I build a dropdown, a menu, a popup? | [[custom-select]], [[date-picker]], [[floating-layer]] |
 | How does the layout respond to width? | [[nav-breakpoints]] |
 | I am touching a screen | [[analytics-page]], [[report-page]], [[settings-schema]] |
@@ -34,6 +35,7 @@ Kept, not deleted — the reasoning is what stops a question being re-litigated.
 
 - [[native-controls]] → [[custom-select]]. Native `<select>` and `<input type="date">`, and the five things that forced them out on 2026-08-01.
 - [[ledger-row-debit-red]] → [[card-movement]] + [[debit-red]]. Debits in red and cards on a blue chip. Split verdict on 2026-08-02: the blue chip lost to violet, the red debits shipped.
+- [[icon-vector-source]] → [[brand-assets]]. The icon as hand-written SVG screenshotted by Chrome, replaced by raster masters on 2026-08-02. Keeps the three constraints the SVG encoded.
 
 ## Conventions
 

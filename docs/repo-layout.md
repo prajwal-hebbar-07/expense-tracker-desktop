@@ -36,6 +36,7 @@ expense-tracker-desktop/
 ├── pnpm-lock.yaml               # committed; the only lockfile in the repo
 ├── turbo.json                   # see [[turborepo]]
 ├── .turbo/                      # gitignored, turbo task logs + cache metadata
+├── assets/                      # brand masters, icon.png + logo.png — [[brand-assets]]
 ├── docs/
 │   ├── stack.md
 │   ├── repo-layout.md
@@ -50,7 +51,7 @@ expense-tracker-desktop/
         ├── tsconfig.json        # target ES2020 — no top-level await
         ├── tsconfig.node.json
         ├── .vscode/
-        ├── public/              # served at /, e.g. /vite.svg
+        ├── public/              # served at /, e.g. /icon.png (the favicon)
         ├── src/                 # frontend — React + TS
         │   ├── main.tsx         # ReactDOM root + Database.load (runs migrations)
         │   ├── App.tsx          # still the scaffold demo page
