@@ -24,7 +24,7 @@ export const ACCOUNT_BALANCES = `
 // A card holds no money: its number is what you owe. Debits add to it, credits
 // (a refund, or a bill payment) subtract. Negative means the card is in credit.
 export const CARD_OUTSTANDING = `
-  SELECT c.id, c.bank, c.name, c.last4,
+  SELECT c.id, c.bank, c.name, c.last4, c.due_day,
          COALESCE(SUM(CASE WHEN e.direction = 'debit' THEN e.amount
                            ELSE -e.amount END), 0) AS outstanding
   FROM card c
@@ -34,9 +34,15 @@ export const CARD_OUTSTANDING = `
 
 /** $1 is a local `YYYY-MM`; spent_at is stored as `YYYY-MM-DDT00:00:00Z`.
  *  Transfers are excluded: moving your own money between your own accounts is
- *  neither spending nor income, and counting it inflates both figures. */
+ *  neither spending nor income, and counting it inflates both figures.
+ *
+ *  `on_card` is the borrowed slice of the same figure, not a separate total.
+ *  Spending happens when you commit, not when the statement clears — a tile
+ *  that waited for the bill would report a quiet month you did not have — so a
+ *  card charge counts in `total` and the tile says how much of it was borrowed. */
 export const MONTH_TOTALS = `
-  SELECT direction, COALESCE(SUM(amount), 0) AS total
+  SELECT direction, COALESCE(SUM(amount), 0) AS total,
+         COALESCE(SUM(CASE WHEN card_id IS NOT NULL THEN amount ELSE 0 END), 0) AS on_card
   FROM expense
   WHERE substr(spent_at, 1, 7) = $1 AND to_account_id IS NULL
   GROUP BY direction`;

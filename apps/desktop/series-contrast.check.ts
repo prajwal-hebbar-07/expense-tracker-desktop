@@ -158,3 +158,55 @@ test("violet is still not a series colour", () => {
   const dE = deltaE(simulate(hex("#2e5fd0"), "protan"), simulate(hex("#6a4bc4"), "protan"));
   assert.ok(dE <= REJECTED_AT, `blue vs violet under protanopia is ΔE ${dE.toFixed(1)}`);
 });
+
+// --- The ledger row's three inks -------------------------------------------
+//
+// --debit was added on 2026-08-02 when debits went red. Unlike a chart bar
+// these are text, so the floor is WCAG 1.4.3's 4.5:1 rather than 3:1 — and the
+// pair to watch is --debit against --danger, because a ledger full of red
+// numerals must not read as a page full of alarms.
+
+const ROW = {
+  light: { debit: "#af3a24", credit: "#0e7a57", danger: "#c0324a", surface: "#fcfcfd" },
+  dark: { debit: "#f08c6b", credit: "#4fd1a5", danger: "#e5677a", surface: "#16191c" },
+} as const;
+
+/** A signed amount is 15px/500 text, not a graphical object. */
+const TEXT_FLOOR = 4.5;
+
+for (const [theme, c] of Object.entries(ROW)) {
+  test(`${theme}: every row ink is readable as text on --surface`, () => {
+    for (const name of ["debit", "credit", "danger"] as const) {
+      const ratio = contrast(hex(c[name]), hex(c.surface));
+      console.log(`  ${theme}: --${name} on --surface ${ratio.toFixed(1)}:1`);
+      assert.ok(
+        ratio >= TEXT_FLOOR,
+        `--${name} on --surface is ${ratio.toFixed(2)}:1, below ${TEXT_FLOOR}:1`,
+      );
+    }
+  });
+
+  test(`${theme}: debit red and credit green survive red–green deficiency`, () => {
+    // The direction pair. If these converge, an income row and an expense row
+    // are one glance apart — which is why the sign and the arrow angle carry
+    // direction too, and why this is asserted rather than trusted.
+    for (const kind of ["protan", "deutan"] as const) {
+      const dE = deltaE(simulate(hex(c.debit), kind), simulate(hex(c.credit), kind));
+      assert.ok(dE > REJECTED_AT, `${theme}/${kind}: debit vs credit is ΔE ${dE.toFixed(1)}`);
+    }
+  });
+
+  test(`${theme}: debit red stays distinct from danger crimson`, () => {
+    // Not resolved by argument, resolved by a token: --debit is a warmer,
+    // lower-chroma brick. They also take different forms — --danger only ever
+    // fills, --debit only ever inks — so a screen of debits never produces a
+    // red block. This pins the hue half of that; the form half is a review rule
+    // in docs/debit-red.md.
+    const dE = deltaE(hex(c.debit), hex(c.danger));
+    console.log(`  ${theme}: --debit vs --danger ΔE ${dE.toFixed(1)}`);
+    assert.ok(
+      dE > REJECTED_AT,
+      `${theme}: --debit and --danger are ΔE ${dE.toFixed(1)} apart — too close to tell a cost from an alarm`,
+    );
+  });
+}

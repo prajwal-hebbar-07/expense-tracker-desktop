@@ -106,6 +106,28 @@ export const ArrowIn = (p: Props) => (
   </Svg>
 );
 
+/** The leading slot on a card charge. Same out-angle as ArrowOut, drawn leaving
+ *  a card body: the angle still reads direction, and the card says the money
+ *  was borrowed rather than yours. */
+export const CardOut = (p: Props) => (
+  <Svg {...p}>
+    <rect x="2" y="12" width="12" height="9" rx="2" />
+    <path d="M2 15.5h12" />
+    <path d="M13 11L21 3M16 3h5v5" />
+  </Svg>
+);
+
+/** A card refund or a cleared bill — debt going down. The arrow angles *into*
+ *  the card, which is what separates it from a self-transfer's two-way glyph:
+ *  both are "neither in nor out", only one of them is about debt. */
+export const CardIn = (p: Props) => (
+  <Svg {...p}>
+    <rect x="2" y="12" width="12" height="9" rx="2" />
+    <path d="M2 15.5h12" />
+    <path d="M21 3L13 11M13 7v4h4" />
+  </Svg>
+);
+
 /** The Spent tile. A single arrow leaving, matched to ArrowOut's direction. */
 export const ArrowRight = (p: Props) => (
   <Svg {...p}>

@@ -1,8 +1,10 @@
 import { ComponentType, useEffect, useState } from "react";
 import { db } from "./db";
-import { formatAmount } from "./money";
+import { formatAmount, formatAmountRound } from "./money";
 import { button, card, errorBox, h1, h2, noticeBox, page } from "./ui";
 import { ArrowsLeftRight, Bank, Calendar, Card } from "./icons";
+import { nextDue } from "./cardBill";
+import { at } from "./day";
 import type { Go } from "./App";
 import { Fields } from "./TransactionFields";
 import { Draft, Errors, cardHint, cardLabel, emptyDraft, toParams, today } from "./transactionForm";
@@ -14,23 +16,32 @@ type Outstanding = {
   bank: string;
   name: string | null;
   last4: string | null;
+  due_day: number | null;
   outstanding: number;
 };
 
 /** The Overview tile. A standing balance has nothing to compare itself against,
  *  so this is a different object from the Analytics summary tile rather than
  *  that one with its delta row switched off — the figure right-aligns, and the
- *  icon sits on the label instead of in a tinted circle. */
+ *  icon sits on the label instead of in a tinted circle.
+ *
+ *  `sub` is one 11px line under the figure answering the question the figure
+ *  raises — what is in the total, when it is due, how it was derived. A second
+ *  state, never a second tile. */
 function Balance({
   label,
   value,
   icon: Icon,
   tint = "",
+  sub,
+  subTint = "text-muted",
 }: {
   label: string;
   value: string;
   icon: ComponentType<{ className?: string }>;
   tint?: string;
+  sub?: string;
+  subTint?: string;
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-3 rounded-[10px] border border-line bg-surface p-4 shadow-card">
@@ -40,17 +51,43 @@ function Balance({
           {label}
         </span>
       </div>
-      <p className={`truncate text-right text-xl font-semibold tracking-[-0.01em] tabular-nums ${tint}`}>
-        {value}
-      </p>
+      <div className="flex flex-col gap-1">
+        <p
+          className={`truncate text-right text-xl font-semibold tracking-[-0.01em] tabular-nums ${tint}`}
+        >
+          {value}
+        </p>
+        {sub && <p className={`truncate text-right text-[11px] ${subTint}`}>{sub}</p>}
+      </div>
     </div>
   );
+}
+
+/** "2 cards · due 5 Aug · 3 days", or just "2 cards" when no cycle is on file.
+ *
+ *  Debt is not an error, so this is a sub-line and never --danger: the tile
+ *  earns weight and a word as the date closes in, nothing more. It also never
+ *  says *overdue* — a bill payment is not modelled yet, so a passed date means
+ *  "the cycle rolled", not "you missed it". */
+function dueLine(cards: Outstanding[]): string {
+  const count = `${cards.length} card${cards.length === 1 ? "" : "s"}`;
+  const soonest = cards
+    .filter((c) => c.due_day !== null && c.outstanding > 0)
+    .map((c) => nextDue(c.due_day!))
+    .sort((a, b) => a.days - b.days)[0];
+  if (!soonest) return count;
+
+  const on = at(soonest.due).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  // Only the near end of the range earns the countdown; a bill 30 days out is
+  // just a date, and printing "· 30 days" on it makes every month feel urgent.
+  const near = soonest.days === 0 ? " · today" : soonest.days <= 7 ? ` · ${soonest.days} days` : "";
+  return `${count} · due ${on}${near}`;
 }
 
 export default function AddTransaction({ go }: { go: Go }) {
   const [balances, setBalances] = useState<Balance[]>([]);
   const [cards, setCards] = useState<Outstanding[]>([]);
-  const [month, setMonth] = useState({ debit: 0, credit: 0 });
+  const [month, setMonth] = useState({ debit: 0, credit: 0, onCard: 0 });
   const [error, setError] = useState<string | null>(null);
   const [invalid, setInvalid] = useState<Errors>({});
   const [saved, setSaved] = useState<string | null>(null);
@@ -61,13 +98,15 @@ export default function AddTransaction({ go }: { go: Go }) {
     setBalances(await conn.select<Balance[]>(ACCOUNT_BALANCES));
     setCards(await conn.select<Outstanding[]>(CARD_OUTSTANDING));
 
-    const totals = await conn.select<{ direction: string; total: number }[]>(
+    const totals = await conn.select<{ direction: string; total: number; on_card: number }[]>(
       MONTH_TOTALS,
       [today().slice(0, 7)],
     );
+    const debit = totals.find((t) => t.direction === "debit");
     setMonth({
-      debit: totals.find((t) => t.direction === "debit")?.total ?? 0,
+      debit: debit?.total ?? 0,
       credit: totals.find((t) => t.direction === "credit")?.total ?? 0,
+      onCard: debit?.on_card ?? 0,
     });
   }
 
@@ -122,20 +161,36 @@ export default function AddTransaction({ go }: { go: Go }) {
       {/* Standing figures first: they are what the window is usually left open
           on, and the form below is entered into a few times a day. */}
       <div className="mt-5 grid grid-cols-1 gap-4 nav:grid-cols-2 lg:grid-cols-4">
-        <Balance label="In accounts" value={formatAmount(inAccounts)} icon={Bank} />
+        <Balance
+          label="In accounts"
+          value={formatAmount(inAccounts)}
+          icon={Bank}
+          sub={`${balances.length} account${balances.length === 1 ? "" : "s"}`}
+        />
         <Balance
           label="Card outstanding"
           value={formatAmount(owed)}
           icon={Card}
           tint="text-violet"
+          sub={cards.length > 0 ? dueLine(cards) : undefined}
+          subTint="text-violet"
         />
         <Balance
           label="Net"
           value={formatAmount(inAccounts - owed)}
           icon={ArrowsLeftRight}
           tint={inAccounts - owed >= 0 ? "text-credit" : "text-danger"}
+          sub="accounts − outstanding"
         />
-        <Balance label="This month" value={formatAmount(month.debit)} icon={Calendar} />
+        <Balance
+          label="Spent this month"
+          value={formatAmount(month.debit)}
+          icon={Calendar}
+          // Only when there is card spend to declare: "incl. ₹0 on card" on a
+          // cash-only month is a sentence about nothing.
+          sub={month.onCard > 0 ? `incl. ${formatAmountRound(month.onCard)} on card` : undefined}
+          subTint="text-violet"
+        />
       </div>
 
       {balances.length === 0 && cards.length === 0 ? (

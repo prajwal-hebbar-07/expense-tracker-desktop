@@ -5,7 +5,13 @@ import { input, button, iconButton, card, errorBox, h1, h2, page } from "./ui";
 import ConfirmDelete from "./ConfirmDelete";
 
 type Account = { id: number; bank: string; balance: number; currency: string };
-type Card = { id: number; bank: string; name: string | null; last4: string | null };
+type Card = {
+  id: number;
+  bank: string;
+  name: string | null;
+  last4: string | null;
+  due_day: number | null;
+};
 type Pending = { table: "account" | "card"; id: number };
 
 export default function Settings() {
@@ -22,6 +28,7 @@ export default function Settings() {
   const [cardBank, setCardBank] = useState("");
   const [cardName, setCardName] = useState("");
   const [last4, setLast4] = useState("");
+  const [dueDay, setDueDay] = useState("");
 
   // Inline balance edit
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -36,7 +43,7 @@ export default function Settings() {
     );
     setCards(
       await conn.select<Card[]>(
-        "SELECT id, bank, name, last4 FROM card ORDER BY bank, name",
+        "SELECT id, bank, name, last4, due_day FROM card ORDER BY bank, name",
       ),
     );
   }
@@ -96,15 +103,20 @@ export default function Settings() {
     e.preventDefault();
     if (!cardBank.trim()) return setError("Bank is required.");
     if (last4 && !/^\d{4}$/.test(last4)) return setError("Last 4 must be exactly 4 digits.");
+    // Checked here as well as by the column CHECK: a violated CHECK surfaces as
+    // a raw SQLite string in the page-level error box, which is not a sentence.
+    if (dueDay && !/^([1-9]|[12]\d|3[01])$/.test(dueDay))
+      return setError("Due day must be a day of the month, 1 to 31.");
 
     run(async () => {
       await (await db).execute(
-        "INSERT INTO card (bank, name, last4) VALUES ($1, $2, $3)",
-        [cardBank.trim(), cardName.trim() || null, last4 || null],
+        "INSERT INTO card (bank, name, last4, due_day) VALUES ($1, $2, $3, $4)",
+        [cardBank.trim(), cardName.trim() || null, last4 || null, dueDay ? Number(dueDay) : null],
       );
       setCardBank("");
       setCardName("");
       setLast4("");
+      setDueDay("");
     });
   }
 
@@ -245,6 +257,9 @@ export default function Settings() {
                     {c.last4 && (
                       <span className="ml-2 text-muted tabular-nums">••••{c.last4}</span>
                     )}
+                    {c.due_day !== null && (
+                      <span className="ml-2 text-muted">due {c.due_day}th</span>
+                    )}
                   </span>
                   <button
                     className={iconButton}
@@ -278,6 +293,17 @@ export default function Settings() {
             maxLength={4}
             value={last4}
             onChange={(e) => setLast4(e.currentTarget.value)}
+          />
+          {/* A day of the month, not a date — the statement falls on the same
+              day every cycle. Optional: no day means the tile shows no due
+              line, which beats showing a made-up one. */}
+          <input
+            className={`${input} w-24 text-center`}
+            placeholder="Due day"
+            inputMode="numeric"
+            maxLength={2}
+            value={dueDay}
+            onChange={(e) => setDueDay(e.currentTarget.value)}
           />
           <button type="submit" className={button}>
             Add card

@@ -97,6 +97,22 @@ fn migrations() -> Vec<Migration> {
         ",
             kind: MigrationKind::Up,
         },
+        // A day-of-month, not a date: a statement is due on the same day every
+        // cycle, and storing the next date would need a job to roll it over.
+        // Nullable, because a card whose cycle you have not typed in is a card
+        // that shows no due line rather than one that shows a wrong one.
+        //
+        // The CHECK is safe to add here (unlike migration 3's) precisely because
+        // it admits NULL: every existing card row satisfies it.
+        Migration {
+            version: 6,
+            description: "add_statement_due_day_to_card",
+            sql: "
+            ALTER TABLE card ADD COLUMN due_day INTEGER
+              CHECK (due_day IS NULL OR due_day BETWEEN 1 AND 31);
+        ",
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

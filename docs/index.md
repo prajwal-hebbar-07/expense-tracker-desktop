@@ -2,13 +2,13 @@
 id: index
 type: reference
 status: active
-updated: 2026-08-01
+updated: 2026-08-02
 links: []
 ---
 
 # Map
 
-Twenty nodes is past the point where the graph needs one. Start from the question, not the top.
+Twenty-four nodes is past the point where the graph needs one. Start from the question, not the top.
 
 ## Where do I start?
 
@@ -16,6 +16,8 @@ Twenty nodes is past the point where the graph needs one. Start from the questio
 |---|---|
 | What is this app built out of? | [[stack]], [[repo-layout]], [[turborepo]] |
 | How is data stored and read? | [[persistence-sqlite]], [[transaction-ledger]], [[derived-balances]] |
+| What does a ledger row look like, and why? | [[card-movement]], [[debit-red]] |
+| Anything about a credit card | [[card-movement]], [[card-due-day]] |
 | What colour / size / shape do I use? | [[design-tokens]], [[accent-green]] |
 | What is the app called, and where is its icon from? | [[brand-ledgerflow]] |
 | How do I build a dropdown, a menu, a popup? | [[custom-select]], [[date-picker]], [[floating-layer]] |
@@ -31,6 +33,7 @@ Twenty nodes is past the point where the graph needs one. Start from the questio
 Kept, not deleted — the reasoning is what stops a question being re-litigated.
 
 - [[native-controls]] → [[custom-select]]. Native `<select>` and `<input type="date">`, and the five things that forced them out on 2026-08-01.
+- [[ledger-row-debit-red]] → [[card-movement]] + [[debit-red]]. Debits in red and cards on a blue chip. Split verdict on 2026-08-02: the blue chip lost to violet, the red debits shipped.
 
 ## Conventions
 

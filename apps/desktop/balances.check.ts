@@ -20,7 +20,7 @@ import {
 function schema(): string {
   const rust = readFileSync(new URL("./src-tauri/src/lib.rs", import.meta.url), "utf8");
   const sql = [...rust.matchAll(/sql: "([\s\S]*?)",\n\s*kind:/g)].map((m) => m[1]);
-  assert.equal(sql.length, 5, "expected 5 migrations in lib.rs");
+  assert.equal(sql.length, 6, "expected 6 migrations in lib.rs");
   return sql.join("\n");
 }
 

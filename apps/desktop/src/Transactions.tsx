@@ -3,9 +3,10 @@ import { db } from "./db";
 import { fromMinor, formatAmount } from "./money";
 import { button, iconButton, cancelButton, card, errorBox, h1, page } from "./ui";
 import ConfirmDelete from "./ConfirmDelete";
-import { ArrowIn, ArrowOut, ArrowsLeftRight } from "./icons";
+import { ArrowIn, ArrowOut, ArrowsLeftRight, CardIn, CardOut } from "./icons";
 import { Fields } from "./TransactionFields";
 import { Draft, Errors, cardHint, cardLabel, sourceOf, toParams } from "./transactionForm";
+import { outstandingAround } from "./cardBill";
 import {
   TRANSACTIONS,
   UPDATE_TRANSACTION,
@@ -29,7 +30,67 @@ type Row = {
   destination: string | null;
 };
 type Account = { id: number; bank: string };
-type Card = { id: number; bank: string; name: string | null; last4: string | null };
+type Card = {
+  id: number;
+  bank: string;
+  name: string | null;
+  last4: string | null;
+  outstanding: number;
+};
+
+/** Two axes, two carriers. Angle carries direction — out, in, both ways — and
+ *  hue says what the money did: --debit red left an account, --credit green
+ *  arrived in one, --violet is the card, --muted is neither.
+ *
+ *  A card row keeps the card's hue rather than the direction hue, because it
+ *  never moved an account balance — it moved what you owe — and its sign
+ *  follows the debt instead: − raises outstanding, signless lowers it. */
+// ponytail: five kinds, not six. A card bill payment is a sixth — two rows read
+// as one bracketed event — but nothing links the bank leg to the card leg, so
+// it renders as an ordinary debit plus an ordinary card credit. Add the kind
+// when the link exists; see docs/card-movement.md.
+type Kind = "transfer" | "cardDebit" | "cardCredit" | "credit" | "debit";
+
+const kindOf = (r: Row): Kind =>
+  r.to_account_id
+    ? "transfer"
+    : r.card_id
+      ? r.direction === "credit"
+        ? "cardCredit"
+        : "cardDebit"
+      : r.direction === "credit"
+        ? "credit"
+        : "debit";
+
+const GLYPH = {
+  transfer: [ArrowsLeftRight, "text-muted"],
+  cardDebit: [CardOut, "text-violet"],
+  cardCredit: [CardIn, "text-violet"],
+  credit: [ArrowIn, "text-credit"],
+  debit: [ArrowOut, "text-debit"],
+} as const;
+
+/** Signless twice, for two different reasons. A transfer is neither in nor out;
+ *  a card credit is money that *did not arrive in an account* — the debt just
+ *  went down. `+` and green are reserved for money that actually landed. */
+const SIGN = { transfer: "", cardDebit: "−", cardCredit: "", credit: "+", debit: "−" };
+
+const AMOUNT = {
+  transfer: "text-muted",
+  cardDebit: "text-violet",
+  // The pill is what keeps a signless violet figure from reading as a plain
+  // violet charge — the two states are one character apart otherwise.
+  cardCredit: "rounded-md bg-violet-weak px-1.5 py-0.5 text-violet",
+  credit: "text-credit",
+  // Inked, never filled. --debit lands on most of the list, and a tint behind
+  // every other row is the glare the palette exists to prevent — it is also
+  // what keeps the delete-confirm band the only red *block* on the page.
+  debit: "text-debit",
+};
+
+/** 4485300 -> "44,853". No symbol and no paise: this runs inside a 12.5px meta
+ *  line as prose ("outstanding 46,652 → 44,853"), not as a money column. */
+const grouped = (paise: number) => Math.round(paise / 100).toLocaleString("en-IN");
 
 /** "2026-07-31T00:00:00Z" -> "31 Jul 2026". Dates are stored as a UTC midnight
  *  standing for a local calendar day, so read the parts rather than parsing. */
@@ -123,6 +184,10 @@ export default function Transactions() {
     cards: cards.map((c) => ({ id: c.id, label: cardLabel(c), hint: cardHint(c) })),
   };
 
+  // One walk for the whole list rather than a lookup per row: it has to run in
+  // list order to be correct at all.
+  const owed = outstandingAround(rows, cards);
+
   return (
     <div className={page}>
       <h1 className={h1}>Transactions</h1>
@@ -176,23 +241,36 @@ export default function Transactions() {
                 <div className="group grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2.5 py-2.5">
                   {/* Leading slot: direction read by angle before it is read by
                       colour. A transfer takes the two-way arrow — it is a third
-                      kind of movement, not a debit with the sign filed off. */}
-                  {r.to_account_id ? (
-                    <ArrowsLeftRight className="size-[18px] text-muted" />
-                  ) : r.direction === "credit" ? (
-                    <ArrowIn className="size-[18px] text-credit" />
-                  ) : (
-                    <ArrowOut className="size-[18px] text-muted" />
-                  )}
+                      kind of movement, not a debit with the sign filed off — and
+                      a card row takes a card body with the arrow leaving or
+                      entering it. */}
+                  {(() => {
+                    const [Glyph, tint] = GLYPH[kindOf(r)];
+                    return <Glyph className={`size-[18px] ${tint}`} />;
+                  })()}
 
                   <span className="flex min-w-0 flex-col gap-0.5">
                     <span className="truncate text-[13.5px] font-medium">{r.title}</span>
                     <span className="truncate text-[12.5px] text-muted">
-                      {r.source ?? "unassigned"}
+                      {/* Louder, not bigger. On a card row the thing you want
+                          after "how much" is *which card owes it*, and one
+                          weight step inside the existing meta line buys that
+                          without a chip, a second line or a fourth column. */}
+                      <span className={r.card_id ? "font-medium text-ink" : ""}>
+                        {r.source ?? "unassigned"}
+                      </span>
                       {/* The text glyph, not the 24px icon: it scales and
                           baselines with the 12.5px line it sits in, where the
                           stroke icon would push the row to 60px. */}
                       {r.destination && ` → ${r.destination}`}
+                      {/* Before the note, not after: this is the sentence a
+                          refund actually makes, so it is the clause worth
+                          keeping when the line truncates. */}
+                      {kindOf(r) === "cardCredit" &&
+                        owed.has(r.id) &&
+                        ` · outstanding ${grouped(owed.get(r.id)!.before)} → ${grouped(
+                          owed.get(r.id)!.after,
+                        )}`}
                       {r.note && ` · ${r.note}`}
                     </span>
                   </span>
@@ -203,15 +281,9 @@ export default function Transactions() {
                         quieter weight makes the difference deliberate rather
                         than missing. The money is still yours. */}
                     <span
-                      className={`text-[15px] font-medium tabular-nums ${
-                        r.to_account_id
-                          ? "text-muted"
-                          : r.direction === "credit"
-                            ? "text-credit"
-                            : ""
-                      }`}
+                      className={`text-[15px] font-medium tabular-nums ${AMOUNT[kindOf(r)]}`}
                     >
-                      {r.to_account_id ? "" : r.direction === "credit" ? "+" : "−"}
+                      {SIGN[kindOf(r)]}
                       {formatAmount(r.amount, r.currency)}
                     </span>
                     {/* Revealed on hover, but never hidden from the keyboard —

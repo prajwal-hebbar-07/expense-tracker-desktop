@@ -28,6 +28,12 @@
   --credit: var(--accent);
   --violet: #6a4bc4;
   --danger: #c0324a;
+  /* Money out. A brick red — warmer and lower-chroma than --danger's crimson,
+     because it lands on nine rows in ten and a crimson ledger is an alarm going
+     off all day. The two also take different forms and never collide: --danger
+     only ever fills (delete button, confirm band), --debit only ever inks
+     (glyph, numeral). Measured in `series-contrast.check.ts`. */
+  --debit: #af3a24;
   /* Second categorical hue for charts, paired with --accent. Green+blue clears
      3:1 on both surfaces and separates well for the common red–green
      deficiencies (ΔE 56–84), but the two collapse under tritanopia (ΔE ~1.5)
@@ -45,6 +51,9 @@
   --accent-weak: rgba(14, 122, 87, 0.1);
   --credit-weak: var(--accent-weak);
   --danger-weak: rgba(192, 50, 74, 0.09);
+  /* Declared for parity with the other hues. No row fills with it — a standing
+     tint on most of the list is the glare the palette exists to prevent. */
+  --debit-weak: rgba(175, 58, 36, 0.1);
   --violet-weak: rgba(106, 75, 196, 0.1);
   --series-b-weak: rgba(46, 95, 208, 0.1);
   --warn-weak: rgba(180, 83, 9, 0.1);
@@ -75,12 +84,14 @@
     --credit: var(--accent);
     --violet: #9b8af2;
     --danger: #e5677a;
+    --debit: #f08c6b;
     --series-b: #7aa2f7;
     --warn: #d97706;
 
     --accent-weak: rgba(79, 209, 165, 0.14);
     --credit-weak: var(--accent-weak);
     --danger-weak: rgba(229, 103, 122, 0.13);
+    --debit-weak: rgba(240, 140, 107, 0.14);
     --violet-weak: rgba(155, 138, 242, 0.14);
     --series-b-weak: rgba(122, 162, 247, 0.16);
     --warn-weak: rgba(217, 119, 6, 0.16);
@@ -124,10 +135,12 @@
   --color-accent-ink: var(--accent-ink);
   --color-credit: var(--credit);
   --color-danger: var(--danger);
+  --color-debit: var(--debit);
 
   --color-accent-weak: var(--accent-weak);
   --color-credit-weak: var(--credit-weak);
   --color-danger-weak: var(--danger-weak);
+  --color-debit-weak: var(--debit-weak);
   --color-violet-weak: var(--violet-weak);
   --color-series-b-weak: var(--series-b-weak);
   --color-warn-weak: var(--warn-weak);
