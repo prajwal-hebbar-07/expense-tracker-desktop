@@ -25,14 +25,21 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      # The default token is persisted in .git/config, which is what later lets
-      # the bump commit push back to the branch this was dispatched from.
-      - uses: actions/checkout@v4
+      # The default token is persisted as a git credential helper, which is what
+      # later lets the bump commit push back to the branch this was dispatched
+      # from. Since checkout v6 it lives in a file under $RUNNER_TEMP rather than
+      # in .git/config; git push still picks it up with no extra configuration.
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4 # version comes from packageManager in package.json
-      - uses: actions/setup-node@v4
+      # v6 is the first release that accepts the pnpm 11 pinned in
+      # packageManager, which is also where the version comes from.
+      - uses: pnpm/action-setup@v6
+      # Must stay after action-setup: the pnpm cache path is resolved by running
+      # pnpm, so caching silently does nothing if pnpm is not on PATH yet.
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
+          # Explicit, because since v6 only npm is cached automatically.
           cache: pnpm
 
       - uses: dtolnay/rust-toolchain@stable
