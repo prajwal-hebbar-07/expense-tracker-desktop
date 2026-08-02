@@ -19,10 +19,14 @@ permissions:
   contents: write # push the bump commit and its tag, create the release
 
 jobs:
+  # Owns the version bump, the tag and the release itself; the Linux job only
+  # adds artifacts to what this one created.
   release:
     # macos-latest is Apple Silicon. Add a matrix entry with
     # --target x86_64-apple-darwin if an Intel build is ever needed.
     runs-on: macos-latest
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
 
     steps:
       # The default token is persisted as a git credential helper, which is what
@@ -121,3 +125,61 @@ jobs:
           prerelease: false
           uploadUpdaterJson: true
           args: --target aarch64-apple-darwin
+
+  # Sequential, not a matrix entry, because both jobs write latest.json to the
+  # same release: running second means tauri-action merges the linux platform
+  # key into the manifest the macOS job already uploaded, instead of racing it.
+  linux:
+    needs: release
+    # Pinned to the oldest supported image on purpose: an AppImage links the
+    # glibc it was built against, so building on 24.04 would refuse to start on
+    # anything older.
+    runs-on: ubuntu-22.04
+
+    steps:
+      # The tag, not the branch — the branch may have moved since, and this must
+      # build the exact tree the macOS artifacts came from.
+      - uses: actions/checkout@v7
+        with:
+          ref: v${{ needs.release.outputs.version }}
+
+      # webkit2gtk-4.1 is the Tauri v2 webview (v1 used 4.0); patchelf is what
+      # the AppImage bundler uses to rewrite the interpreter paths.
+      - name: Install the webview and bundler dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev
+
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+
+      - run: pnpm install --frozen-lockfile
+
+      # The checks already passed on the macOS job for this exact commit.
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: apps/desktop
+          # Same tag as the macOS job, so this uploads into that release rather
+          # than creating a second one.
+          tagName: v${{ needs.release.outputs.version }}
+          releaseName: LedgerFlow v${{ needs.release.outputs.version }}
+          releaseDraft: false
+          prerelease: false
+          uploadUpdaterJson: true
+          # rpm is dropped: it cannot self-update either, and deb already covers
+          # the "install it properly" case.
+          args: --bundles deb,appimage

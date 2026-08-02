@@ -26,7 +26,7 @@ Twenty-four nodes is past the point where the graph needs one. Start from the qu
 | I am touching a chart or a tile | [[summary-tile-delta]], [[chart-outlier]], [[filter-row]] |
 | Why does this dialog / confirm not work? | [[webview-dialogs]] |
 | Money moving between own accounts | [[self-transfer]] |
-| Shipping a new version | [[auto-update]] |
+| Shipping a new version | [[auto-update]], [[linux-release]] |
 
 ## Superseded
 
