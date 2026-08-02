@@ -2,17 +2,19 @@
 id: nav-breakpoints
 type: decision
 status: active
-updated: 2026-08-01
-links: [design-tokens, filter-row]
+updated: 2026-08-02
+links: [design-tokens, filter-row, brand-ledgerflow]
 ---
 
 # Navigation at five items
 
 One `<nav>` in `apps/desktop/src/App.tsx`, four shapes, all CSS. Five destinations is where a top bar runs out of room, so the breakpoints are measured rather than chosen.
 
-At 13.5px the labels are: Overview 112 · Transactions 134 · Analytics 108 · Report 92 · Settings 100, plus four 4px gaps = **562px**. The wordmark plus its 16px gap adds **94**. A 620px window has 588 of usable bar, so labelled items fit only once the wordmark leaves.
+At 13.5px the labels are: Overview 112 · Transactions 134 · Analytics 108 · Report 92 · Settings 100, plus four 4px gaps = **562px**. The wordmark plus its 16px gap adds **132** — it was 94 as "Khata", and the 2026-08-02 rename to "LedgerFlow" widened the text itself from 36.8 to 74.4. A 620px window has 588 of usable bar, so labelled items fit only once the wordmark leaves.
 
-The wordmark is what gives, and it costs nothing: this is a single-window app, the OS title bar already says Khata, and the `<h1>` under the bar names the screen.
+The longer name does **not** move a breakpoint: at `md` (768) the bar has 744 usable and needs 562 + 132 = 694, leaving 50px. Anything longer than about "LedgerFlowXX" would break `md` first, not `nav` — re-measure before renaming again.
+
+The wordmark is what gives, and it costs nothing: this is a single-window app, the OS title bar already says LedgerFlow, and the `<h1>` under the bar names the screen.
 
 ## Rules for an agent working here
 

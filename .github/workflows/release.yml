@@ -107,7 +107,7 @@ jobs:
         with:
           projectPath: apps/desktop
           tagName: v${{ steps.bump.outputs.version }}
-          releaseName: Khata v${{ steps.bump.outputs.version }}
+          releaseName: LedgerFlow v${{ steps.bump.outputs.version }}
           # Must not be a draft or a prerelease: the updater endpoint resolves
           # /releases/latest/, which skips both.
           releaseDraft: false

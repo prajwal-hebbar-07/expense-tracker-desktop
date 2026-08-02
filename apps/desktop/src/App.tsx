@@ -49,7 +49,7 @@ function App() {
             588–767   top bar, no wordmark (5 labels alone = 562px)
             <588    icon-only, 5 × 44×44 = 220px
           The wordmark is what gives, and it costs nothing: this is a single
-          window, the OS title bar already says Khata, and the H1 under the
+          window, the OS title bar already says LedgerFlow, and the H1 under the
           bar names the screen. */}
       <div className="min-h-screen bg-bg font-sans text-ink lg:grid lg:grid-cols-[13.5rem_1fr]">
         <header className="sticky top-0 z-30 border-b border-line bg-rail/95 backdrop-blur lg:h-screen lg:border-r lg:border-b-0">
@@ -58,7 +58,7 @@ function App() {
                 a 620px window's bar, and the wordmark is the one item that is
                 not a destination. */}
             <p className="hidden px-2 pb-3.5 text-sm font-semibold tracking-[-0.01em] md:block lg:pt-1">
-              Khata
+              LedgerFlow
             </p>
             <nav className="flex flex-1 justify-between gap-1 lg:flex-none lg:flex-col lg:justify-start lg:gap-1">
               {(Object.keys(tabs) as Tab[]).map((name) => {
