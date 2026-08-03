@@ -43,10 +43,9 @@ export function Fields({
 
   return (
     <>
-      {/* The four-field row: type, amount, title, date. Collapses to one column
-          below `sm`, where 388px of content box cannot hold two 150px fields
-          and a title worth reading. */}
-      <div className="grid gap-3 sm:grid-cols-[7.5rem_9.375rem_minmax(0,1fr)_9.375rem]">
+      {/* The compact facts stay together; the longer description gets the
+          full height of the date/account column below. */}
+      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_2fr]">
         <Select
           label="Type"
           items={TYPES}
@@ -70,46 +69,49 @@ export function Fields({
           onChange={(v) => set("title", v)}
           error={errors.title}
         />
-        <DatePicker label="Date" value={draft.date} onChange={(v) => set("date", v)} />
       </div>
 
-      {/* One select, or two. `flex-wrap` with a 176px floor is the whole of the
-          stacking rule: two of them plus the 12px gap need 364px, so they drop
-          to one column exactly where the design says they do, at no breakpoint. */}
-      <div className="flex flex-wrap gap-3">
-        <Select
-          className={transfer ? "min-w-44 flex-1" : "w-full"}
-          label={transfer ? "From account" : "Account or card"}
-          items={sourceItems}
-          value={draft.source}
-          onChange={(v) => set("source", v)}
-          placeholder={transfer ? "From account…" : "Account or card…"}
-          error={errors.source}
-        />
-        {transfer && (
-          <Select
-            className="min-w-44 flex-1"
-            label="To account"
-            items={accounts.map((a) => ({ value: String(a.id), label: a.label }))}
-            value={draft.to}
-            onChange={(v) => set("to", v)}
-            placeholder="To account…"
-            error={errors.to}
+      {/* Grid stretch makes both columns equal in height without measuring
+          them in JavaScript. Narrow windows fall back to one column. */}
+      <div className="grid items-stretch gap-3 sm:grid-cols-2">
+        <div className="flex flex-col gap-3">
+          <DatePicker label="Date" value={draft.date} onChange={(v) => set("date", v)} />
+          <div className="flex flex-wrap gap-3">
+            <Select
+              className={transfer ? "min-w-44 flex-1" : "w-full"}
+              label={transfer ? "From account" : "Account or card"}
+              items={sourceItems}
+              value={draft.source}
+              onChange={(v) => set("source", v)}
+              placeholder={transfer ? "From account…" : "Account or card…"}
+              error={errors.source}
+            />
+            {transfer && (
+              <Select
+                className="min-w-44 flex-1"
+                label="To account"
+                items={accounts.map((a) => ({ value: String(a.id), label: a.label }))}
+                value={draft.to}
+                onChange={(v) => set("to", v)}
+                placeholder="To account…"
+                error={errors.to}
+              />
+            )}
+          </div>
+        </div>
+
+        <div className="flex min-h-0 flex-col">
+          <label htmlFor="txn-note" className={`${labelClass} mb-1.5 block`}>
+            Description (optional)
+          </label>
+          <textarea
+            id="txn-note"
+            className={`${textarea} min-h-24! w-full flex-1 resize-none sm:min-h-0!`}
+            placeholder="Why did this money move?"
+            value={draft.note}
+            onChange={(e) => set("note", e.currentTarget.value)}
           />
-        )}
-      </div>
-
-      <div>
-        <label htmlFor="txn-note" className={`${labelClass} mb-1.5 block`}>
-          Note (optional)
-        </label>
-        <textarea
-          id="txn-note"
-          className={`${textarea} w-full resize-y`}
-          placeholder="Why did this money move?"
-          value={draft.note}
-          onChange={(e) => set("note", e.currentTarget.value)}
-        />
+        </div>
       </div>
     </>
   );
