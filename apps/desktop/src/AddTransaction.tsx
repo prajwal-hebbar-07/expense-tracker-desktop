@@ -22,8 +22,8 @@ type Outstanding = {
 
 /** The Overview tile. A standing balance has nothing to compare itself against,
  *  so this is a different object from the Analytics summary tile rather than
- *  that one with its delta row switched off — the figure right-aligns, and the
- *  icon sits on the label instead of in a tinted circle.
+ *  that one with its delta row switched off. The icon identifies the kind at a
+ *  glance while the amount and supporting line stay together below it.
  *
  *  `sub` is one 11px line under the figure answering the question the figure
  *  raises — what is in the total, when it is due, how it was derived. A second
@@ -32,6 +32,7 @@ function Balance({
   label,
   value,
   icon: Icon,
+  iconTone = "bg-hover text-muted",
   tint = "",
   sub,
   subTint = "text-muted",
@@ -39,25 +40,28 @@ function Balance({
   label: string;
   value: string;
   icon: ComponentType<{ className?: string }>;
+  iconTone?: string;
   tint?: string;
   sub?: string;
   subTint?: string;
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-card">
-      <div className="flex items-center gap-2 text-muted">
-        <Icon className={`size-[18px] shrink-0 ${tint}`} />
+    <div className="flex min-h-[132px] min-w-0 flex-col rounded-2xl border border-line bg-surface p-4 shadow-card">
+      <div className="flex items-center gap-3 text-muted">
+        <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${iconTone}`}>
+          <Icon className="size-[18px]" />
+        </span>
         <span className="truncate text-[11px] font-medium tracking-[0.07em] uppercase">
           {label}
         </span>
       </div>
-      <div className="flex flex-col gap-1">
+      <div className="mt-auto flex flex-col gap-1 pt-4">
         <p
-          className={`truncate text-right text-xl font-semibold tracking-[-0.01em] tabular-nums ${tint}`}
+          className={`truncate text-[22px] leading-none font-semibold tracking-[-0.02em] tabular-nums ${tint}`}
         >
           {value}
         </p>
-        {sub && <p className={`truncate text-right text-[11px] ${subTint}`}>{sub}</p>}
+        {sub && <p className={`truncate text-[11.5px] ${subTint}`}>{sub}</p>}
       </div>
     </div>
   );
@@ -166,12 +170,14 @@ export default function AddTransaction({ go }: { go: Go }) {
           label="In accounts"
           value={formatAmount(inAccounts)}
           icon={Bank}
+          iconTone="bg-accent-weak text-accent"
           sub={`${balances.length} account${balances.length === 1 ? "" : "s"}`}
         />
         <Balance
           label="Card outstanding"
           value={formatAmount(owed)}
           icon={Card}
+          iconTone="bg-violet-weak text-violet"
           tint="text-violet"
           sub={cards.length > 0 ? dueLine(cards) : undefined}
           subTint="text-violet"
@@ -180,6 +186,11 @@ export default function AddTransaction({ go }: { go: Go }) {
           label="Net"
           value={formatAmount(inAccounts - owed)}
           icon={ArrowsLeftRight}
+          iconTone={
+            inAccounts - owed >= 0
+              ? "bg-credit-weak text-credit"
+              : "bg-danger-weak text-danger"
+          }
           tint={inAccounts - owed >= 0 ? "text-credit" : "text-danger"}
           sub="accounts − outstanding"
         />
@@ -187,6 +198,7 @@ export default function AddTransaction({ go }: { go: Go }) {
           label="Spent this month"
           value={formatAmount(month.debit)}
           icon={Calendar}
+          iconTone="bg-debit-weak text-debit"
           // Only when there is card spend to declare: "incl. ₹0 on card" on a
           // cash-only month is a sentence about nothing.
           sub={month.onCard > 0 ? `incl. ${formatAmountRound(month.onCard)} on card` : undefined}

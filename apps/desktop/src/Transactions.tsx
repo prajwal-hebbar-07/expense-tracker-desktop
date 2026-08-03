@@ -63,11 +63,11 @@ const kindOf = (r: Row): Kind =>
         : "debit";
 
 const GLYPH = {
-  transfer: [ArrowsLeftRight, "text-muted"],
-  cardDebit: [CardOut, "text-violet"],
-  cardCredit: [CardIn, "text-violet"],
-  credit: [ArrowIn, "text-credit"],
-  debit: [ArrowOut, "text-debit"],
+  transfer: [ArrowsLeftRight, "bg-hover text-muted"],
+  cardDebit: [CardOut, "bg-violet-weak text-violet"],
+  cardCredit: [CardIn, "bg-violet-weak text-violet"],
+  credit: [ArrowIn, "bg-credit-weak text-credit"],
+  debit: [ArrowOut, "bg-debit-weak text-debit"],
 } as const;
 
 /** Signless twice, for two different reasons. A transfer is neither in nor out;
@@ -80,7 +80,7 @@ const AMOUNT = {
   cardDebit: "text-violet",
   // The pill is what keeps a signless violet figure from reading as a plain
   // violet charge — the two states are one character apart otherwise.
-  cardCredit: "rounded-md bg-violet-weak px-1.5 py-0.5 text-violet",
+  cardCredit: "rounded-lg bg-violet-weak px-1.5 py-0.5 text-violet",
   credit: "text-credit",
   // Inked, never filled. --debit lands on most of the list, and a tint behind
   // every other row is the glare the palette exists to prevent — it is also
@@ -207,19 +207,21 @@ export default function Transactions() {
           </p>
         </div>
       ) : (
-        <ul className={`mt-5 divide-y divide-line ${card} py-1`}>
+        <ul className="mt-5 space-y-2">
           {rows.map((r, i) => (
             <li key={r.id}>
               {/* One heading per date, since the query is already sorted by it. */}
               {(i === 0 ||
                 rows[i - 1].spent_at.slice(0, 10) !== r.spent_at.slice(0, 10)) && (
-                <p className="pt-5 pb-1 text-xs tracking-wide text-muted uppercase">
-                  {day(r.spent_at)}
+                <p
+                  className={`${i === 0 ? "pt-0" : "pt-4"} px-1 pb-1.5 text-[11px] font-medium tracking-[0.07em] text-muted uppercase`}
+                >
+                  <span className="rounded-full bg-hover px-2.5 py-1">{day(r.spent_at)}</span>
                 </p>
               )}
 
               {editing === r.id && draft ? (
-                <div className="flex flex-col gap-3 py-3">
+                <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-card">
                   <Fields draft={draft} onChange={setDraft} errors={invalid} {...options} />
                   <div className="flex justify-end gap-2">
                     <button className={cancelButton} onClick={() => setEditing(null)}>
@@ -231,7 +233,7 @@ export default function Transactions() {
                   </div>
                 </div>
               ) : pending === r.id ? (
-                <div className="flex py-3">
+                <div className="flex rounded-2xl border border-line bg-surface p-3 shadow-card">
                   <ConfirmDelete
                     label={`${r.title} — ${formatAmount(r.amount, r.currency)}`}
                     onCancel={() => setPending(null)}
@@ -239,15 +241,19 @@ export default function Transactions() {
                   />
                 </div>
               ) : (
-                <div className="group grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2.5 py-2.5">
+                <div className="group grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-line bg-surface p-3 shadow-card transition-colors hover:border-muted">
                   {/* Leading slot: direction read by angle before it is read by
                       colour. A transfer takes the two-way arrow — it is a third
                       kind of movement, not a debit with the sign filed off — and
                       a card row takes a card body with the arrow leaving or
                       entering it. */}
                   {(() => {
-                    const [Glyph, tint] = GLYPH[kindOf(r)];
-                    return <Glyph className={`size-[18px] ${tint}`} />;
+                    const [Glyph, tone] = GLYPH[kindOf(r)];
+                    return (
+                      <span className={`grid size-9 place-items-center rounded-xl ${tone}`}>
+                        <Glyph className="size-[18px]" />
+                      </span>
+                    );
                   })()}
 
                   <span className="flex min-w-0 flex-col gap-0.5">
@@ -276,7 +282,7 @@ export default function Transactions() {
                     </span>
                   </span>
 
-                  <span className="flex items-center gap-2">
+                  <span className="flex flex-col items-end gap-1 nav:flex-row nav:items-center nav:gap-2">
                     {/* A transfer gets no sign and drops to --muted: signless
                         next to signed siblings only reads as broken, and the
                         quieter weight makes the difference deliberate rather
@@ -287,9 +293,9 @@ export default function Transactions() {
                       {SIGN[kindOf(r)]}
                       {formatAmount(r.amount, r.currency)}
                     </span>
-                    {/* Revealed on hover, but never hidden from the keyboard —
-                        `focus-within` is what keeps them tabbable. */}
-                    <span className="flex gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+                    {/* Always visible in narrow touch layouts; wider pointer
+                        layouts reveal them on hover or keyboard focus. */}
+                    <span className="flex gap-1 opacity-100 transition-opacity nav:opacity-0 nav:group-focus-within:opacity-100 nav:group-hover:opacity-100">
                       <button
                         className={iconButton}
                         onClick={() => {
