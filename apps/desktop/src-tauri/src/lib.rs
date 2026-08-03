@@ -175,6 +175,67 @@ async fn has_ollama_key() -> bool {
         .unwrap_or(false)
 }
 
+/// Builds a request to `{base_url}{path}` carrying the stored key, if there is
+/// one. The key comes from the credential store, never from the caller.
+///
+/// `timeout` differs per endpoint: listing models should give up quickly so a
+/// typo'd host is obvious, while a completion on a large cloud model genuinely
+/// takes tens of seconds and must not be cut off mid-answer.
+async fn ollama_request(
+    base_url: &str,
+    method: reqwest::Method,
+    path: &str,
+    timeout: std::time::Duration,
+) -> Result<reqwest::RequestBuilder, String> {
+    // reqwest's `rustls-no-provider` leaves the crypto provider to us, and the
+    // alternative (`rustls`) pins aws-lc-rs, which is a cmake + C build in CI.
+    // ring is already in the tree via rustls itself, so this costs no new crate.
+    // Installed here rather than in `run()` so the tests get it too.
+    static TLS: std::sync::Once = std::sync::Once::new();
+    TLS.call_once(|| {
+        // Err only means someone else installed one first, which is fine.
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    });
+
+    let api_key = blocking(|| Ok(key_entry()?.get_password().ok())).await?;
+    let client = reqwest::Client::builder()
+        .timeout(timeout)
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    // trim_end_matches: a pasted URL ending in `/` would otherwise become
+    // `https://ollama.com//api/tags`, which 404s.
+    let mut req = client.request(method, format!("{}{path}", base_url.trim_end_matches('/')));
+    if let Some(key) = api_key.filter(|k| !k.is_empty()) {
+        req = req.bearer_auth(key);
+    }
+    Ok(req)
+}
+
+/// Turns a non-2xx into a sentence the Settings screen can show as-is.
+///
+/// Ollama answers `{"error":"Unauthorized"}`, which on its own tells the user
+/// nothing about what to do, so the common statuses get a real instruction and
+/// the raw detail is kept only as a suffix for the ones that do not.
+async fn check_status(res: reqwest::Response) -> Result<reqwest::Response, String> {
+    if res.status().is_success() {
+        return Ok(res);
+    }
+    let status = res.status();
+    let body = res.text().await.unwrap_or_default();
+    let detail = serde_json::from_str::<serde_json::Value>(&body)
+        .ok()
+        .and_then(|v| v["error"].as_str().map(str::to_owned))
+        .unwrap_or(body);
+
+    Err(match status.as_u16() {
+        401 | 403 => "API key rejected. Check it at ollama.com/settings/keys.".into(),
+        404 => format!("Not found — this server may not offer that model. ({detail})"),
+        429 => "Rate limited by Ollama. Wait a moment and try again.".into(),
+        _ => format!("Ollama replied {status}: {detail}"),
+    })
+}
+
 /// `/api/tags` answers with the same shape on a local daemon and on
 /// ollama.com, so one command serves both. Every other field is ignored.
 #[derive(serde::Deserialize)]
@@ -189,44 +250,24 @@ struct Tag {
 
 /// Lists the models the configured Ollama can serve, sorted.
 ///
-/// The key comes from the credential store, never from the caller. A missing
-/// key is not an error: a local daemon has no auth at all, and ollama.com
-/// answers this one endpoint anonymously — so the catalogue loads before the
-/// user has pasted anything, and a bad key shows up as a 401 here.
+/// ⚠ This proves nothing about the API key. A local daemon has no auth at all,
+/// and ollama.com answers `/api/tags` **anonymously** — a wrong key returns the
+/// full catalogue exactly like a right one. `ollama_check` is what tests a key.
 #[tauri::command]
 async fn ollama_models(base_url: String) -> Result<Vec<String>, String> {
-    let api_key = blocking(|| Ok(key_entry()?.get_password().ok())).await?;
+    let res = ollama_request(
+        &base_url,
+        reqwest::Method::GET,
+        "/api/tags",
+        std::time::Duration::from_secs(15),
+    )
+    .await?
+    .send()
+    .await
+    .map_err(|e| e.to_string())?;
 
-    // reqwest's `rustls-no-provider` leaves the crypto provider to us, and the
-    // alternative (`rustls`) pins aws-lc-rs, which is a cmake + C build in CI.
-    // ring is already in the tree via rustls itself, so this costs no new crate.
-    // Installed here rather than in `run()` so the tests get it too.
-    static TLS: std::sync::Once = std::sync::Once::new();
-    TLS.call_once(|| {
-        // Err only means someone else installed one first, which is fine.
-        let _ = rustls::crypto::ring::default_provider().install_default();
-    });
-
-    let client = reqwest::Client::builder()
-        // Without this a wrong host leaves the button spinning until the OS
-        // gives up, which on macOS is well over a minute.
-        .timeout(std::time::Duration::from_secs(15))
-        .build()
-        .map_err(|e| e.to_string())?;
-
-    // trim_end_matches: a pasted URL ending in `/` would otherwise become
-    // `https://ollama.com//api/tags`, which 404s.
-    let mut req = client.get(format!("{}/api/tags", base_url.trim_end_matches('/')));
-    if let Some(key) = api_key.filter(|k| !k.is_empty()) {
-        req = req.bearer_auth(key);
-    }
-
-    let res = req.send().await.map_err(|e| e.to_string())?;
-    if !res.status().is_success() {
-        return Err(format!("Ollama replied {}", res.status()));
-    }
-
-    let mut names: Vec<String> = res
+    let mut names: Vec<String> = check_status(res)
+        .await?
         .json::<Tags>()
         .await
         .map_err(|e| e.to_string())?
@@ -238,11 +279,65 @@ async fn ollama_models(base_url: String) -> Result<Vec<String>, String> {
     Ok(names)
 }
 
+#[derive(serde::Deserialize)]
+struct Chat {
+    message: ChatMessage,
+}
+
+#[derive(serde::Deserialize)]
+struct ChatMessage {
+    content: String,
+}
+
+/// Proves the whole path end to end and returns what the model actually said.
+///
+/// `/api/chat` is used rather than a cheaper auth-only endpoint (`/api/ps` also
+/// 401s) because the question the user is asking is "can I use this model",
+/// and only a real completion answers it: the key can be valid while the model
+/// is one the subscription does not cover. It costs a few tokens.
+///
+/// `stream: false` is required — the streaming default answers with a sequence
+/// of NDJSON objects that `json::<Chat>()` cannot parse.
+#[tauri::command]
+async fn ollama_check(base_url: String, model: String) -> Result<String, String> {
+    if model.trim().is_empty() {
+        return Err("Pick a model first.".into());
+    }
+
+    let res = ollama_request(
+        &base_url,
+        reqwest::Method::POST,
+        "/api/chat",
+        std::time::Duration::from_secs(60),
+    )
+    .await?
+    .json(&serde_json::json!({
+        "model": model,
+        "messages": [{ "role": "user", "content": "Reply with the single word: ok" }],
+        "stream": false,
+    }))
+    .send()
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let reply = check_status(res)
+        .await?
+        .json::<Chat>()
+        .await
+        .map_err(|e| e.to_string())?
+        .message
+        .content;
+
+    // A model that answers at all is a working model, whatever it chose to say.
+    Ok(reply.trim().to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             ollama_models,
+            ollama_check,
             set_ollama_key,
             has_ollama_key
         ])
@@ -263,10 +358,11 @@ pub fn run() {
 // the network nor a login keychain has any business deciding whether a release
 // ships. Run them by hand after touching the commands:
 //
-//   cargo test -- --ignored --nocapture
+//   cargo test -- --ignored --test-threads=1
 //
-// The keychain test writes to the app's own real entry and restores whatever
-// was there, so running it does not cost you your configured key.
+// `--test-threads=1` is required: several of these write the app's own real
+// credential entry, and in parallel they clobber each other. Each restores
+// whatever key it found, so running them does not cost you your configuration.
 #[cfg(test)]
 mod tests {
     #[tokio::test]
@@ -283,6 +379,40 @@ mod tests {
     #[ignore]
     async fn a_bad_host_is_an_error_not_a_panic() {
         assert!(super::ollama_models("http://127.0.0.1:1".into()).await.is_err());
+    }
+
+    /// The point of `ollama_check`: with no key stored, the cloud must reject
+    /// it. `ollama_models` passes in the same state, which is exactly why the
+    /// model list cannot be used to tell the user their key works.
+    #[tokio::test]
+    #[ignore]
+    async fn a_missing_key_fails_the_check_but_not_the_listing() {
+        let restore = super::blocking(|| Ok(super::key_entry()?.get_password().ok()))
+            .await
+            .expect("credential store should be reachable");
+        super::set_ollama_key(String::new()).await.unwrap();
+
+        assert!(
+            super::ollama_models("https://ollama.com".into()).await.is_ok(),
+            "/api/tags is anonymous, so listing must still succeed"
+        );
+
+        let err = super::ollama_check("https://ollama.com".into(), "gpt-oss:20b".into())
+            .await
+            .expect_err("an unauthenticated completion must be rejected");
+        assert!(err.contains("ollama.com/settings/keys"), "unhelpful message: {err}");
+
+        if let Some(key) = restore {
+            super::set_ollama_key(key).await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn the_check_refuses_an_empty_model_without_a_round_trip() {
+        assert!(super::ollama_check("https://ollama.com".into(), "  ".into())
+            .await
+            .is_err());
     }
 
     #[tokio::test]

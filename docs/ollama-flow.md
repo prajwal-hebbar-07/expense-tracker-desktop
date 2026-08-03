@@ -10,7 +10,7 @@ links: [stack, persistence-sqlite, settings-schema, linux-release]
 
 The app talks to **Ollama Cloud (`https://ollama.com`) by default**, with a Bearer key from the user's paid subscription, and to a local daemon (`http://localhost:11434`, no key) by typing that URL into the same field. There is no cloud/local mode switch: the two differ only by a `base_url` value and whether a key is present. Going direct to the cloud drops the requirement that Ollama.app be installed and running; the cost is one real secret to manage, which is what most of this node is about.
 
-The Settings screen (`apps/desktop/src/OllamaSettings.tsx`) is the only UI: a server field, a write-only key field, a **Connect** button, and a model dropdown that Connect populates. Configured 2026-08-03. Nothing consumes the chosen model yet — this node covers configuration only.
+The Settings screen (`apps/desktop/src/OllamaSettings.tsx`) is the only UI: a server field, a write-only key field, **Connect**, a model dropdown, and **Test**. Connect saves and lists models; choosing a model then fires a real one-word completion and quotes the reply back, which is the only thing that can prove a key. Configured 2026-08-03. Nothing else consumes the chosen model yet — this node covers configuration only.
 
 ## Rules for an agent working here
 
@@ -21,7 +21,11 @@ The Settings screen (`apps/desktop/src/OllamaSettings.tsx`) is the only UI: a se
 5. **Keep every credential-store call inside `blocking()`.** They are synchronous, and on Linux a Secret Service call is a D-Bus round trip; running one on an async worker stalls unrelated work.
 6. **Keep `KEY_SERVICE` equal to `identifier` in `tauri.conf.json`** (`com.hebbar.desktop`). Changing it orphans the stored key exactly as changing the identifier orphans the database — [[stack]] rule 7.
 7. **Send the key only to `base_url`.** It is an Ollama credential; there is no second host it belongs on.
-8. **A missing key is not an error.** A local daemon has no auth at all, and ollama.com answers `/api/tags` anonymously, so the model list loads before anything is pasted and a *bad* key surfaces as a 401 rather than as an empty screen.
+8. **A missing key is not an error.** A local daemon has no auth at all, and ollama.com answers `/api/tags` anonymously, so the model list loads before anything is pasted.
+9. **Never treat a successful `/api/tags` as evidence the key works**, because ollama.com serves it **anonymously**: a wrong key, a revoked key, and no key at all all return the full catalogue. Only `ollama_check` — a real completion — can fail on authentication. Any UI that says "connected" after listing models is lying.
+10. **Test with `/api/chat`, not a cheaper auth-only endpoint.** `/api/ps` does 401, so it would prove the key, but not that the *chosen model* is one the subscription covers — which is the failure the user actually hits. A completion costs a few tokens and answers both.
+11. **Send `stream: false` on every `/api/chat` call.** The streaming default answers with a sequence of NDJSON objects, and deserialising that as one object fails with a parse error that reads like a schema mismatch.
+12. **Do not persist "verified".** A key can be revoked between launches, so a remembered tick asserts something the app has not checked.
 
 ## Contract
 
@@ -29,9 +33,12 @@ The Settings screen (`apps/desktop/src/OllamaSettings.tsx`) is the only UI: a se
 
 | Command | Signature | Notes |
 |---|---|---|
-| `ollama_models` | `(base_url: String) -> Result<Vec<String>, String>` | `GET {base_url}/api/tags`, 15s timeout, names sorted. Reads the key itself |
+| `ollama_models` | `(base_url: String) -> Result<Vec<String>, String>` | `GET {base_url}/api/tags`, 15s timeout, names sorted. **Says nothing about the key** — rule 9 |
+| `ollama_check` | `(base_url: String, model: String) -> Result<String, String>` | `POST {base_url}/api/chat`, 60s timeout. Returns the model's reply. The only call that proves a key |
 | `set_ollama_key` | `(key: String) -> Result<(), String>` | Empty string **deletes**; deleting a key that was never set is `Ok` |
 | `has_ollama_key` | `() -> bool` | False on any error, including an unreachable credential store |
+
+`ollama_request()` builds every outbound call — it installs the TLS provider, reads the key, and joins the path. Add endpoints through it, not with a fresh `reqwest::Client`, or the new path silently loses the key and the crypto provider. `check_status()` turns a non-2xx into the sentence the UI shows.
 
 Called from TypeScript with camelCase arguments — `invoke("ollama_models", { baseUrl })`, not `{ base_url }`. Tauri converts the parameter names, not the object keys you pass.
 
@@ -56,17 +63,34 @@ Called from TypeScript with camelCase arguments — `invoke("ollama_models", { b
 
 Read and written by `getSettings()` / `setSetting()` in `apps/desktop/src/db.ts`. They live in `db.ts` rather than a `settings.ts` because that filename collides with `Settings.tsx` on a case-insensitive filesystem and `tsc` rejects the program outright.
 
-### `/api/tags` response
+### Endpoint responses
 
-Identical on cloud and local; every other field is ignored.
+`/api/tags` — identical on cloud and local; every other field is ignored.
 
 ```json
 { "models": [ { "name": "gpt-oss:120b" } ] }
 ```
 
+`/api/chat` with `stream: false` — only `message.content` is read.
+
+```json
+{ "message": { "role": "assistant", "content": "ok" } }
+```
+
+Errors carry `{"error":"Unauthorized"}`, which `check_status()` replaces with an instruction: 401/403 point at `ollama.com/settings/keys`, 404 says the server may not offer that model, 429 says rate limited.
+
+### Auth, verified by probing ollama.com on 2026-08-03
+
+| Endpoint | No key / bad key |
+|---|---|
+| `GET /api/tags` | **200** with the full catalogue — see rule 9 |
+| `GET /v1/models` | **200** |
+| `POST /api/chat` | **401** `{"error":"Unauthorized"}` |
+| `GET /api/ps` | **401** |
+
 ### TLS
 
-`reqwest` uses `rustls-no-provider`, and `ollama_models` installs `rustls::crypto::ring` behind a `std::sync::Once`. The plain `rustls` feature pins the aws-lc-rs provider, which drags `aws-lc-sys` and a cmake C build into every CI run; `ring` is already in the tree via `rustls` itself and costs no new crate. The `Once` sits in the command rather than in `run()` so the tests get a provider too.
+`reqwest` uses `rustls-no-provider`, and `ollama_request()` installs `rustls::crypto::ring` behind a `std::sync::Once`. The plain `rustls` feature pins the aws-lc-rs provider, which drags `aws-lc-sys` and a cmake C build into every CI run; `ring` is already in the tree via `rustls` itself and costs no new crate. The `Once` sits in the request builder rather than in `run()` so the tests get a provider too.
 
 ## Anti-patterns
 
@@ -76,13 +100,17 @@ Identical on cloud and local; every other field is ignored.
 - **Writing `""` into the credential store** when the user clears the field. It makes `has_ollama_key` true forever with a key that authenticates nothing.
 - **A cloud/local toggle, or separate `cloud_url` and `local_url` rows.** One `base_url` already expresses both.
 - **Persisting the model list.** It is a remote catalogue; caching it means showing models the account no longer has.
+- **Telling the user "Connected" after `ollama_models` succeeds.** Rule 9 — it succeeds with no key at all.
+- **Building a `reqwest::Client` outside `ollama_request()`.** The new path loses the key and the TLS provider; the latter panics at runtime, the former just 401s.
 
 ## Failure modes
 
 | Symptom | Cause | Action |
 |---|---|---|
-| `Ollama replied 401 Unauthorized` | No key, or a revoked/mistyped one | Paste a fresh key from `ollama.com/settings/keys` and press Connect |
-| `Ollama replied 404 Not Found` | `base_url` already ends in `/api`, or a trailing slash reached the join | Rule 4; the field wants an origin, not an endpoint |
+| `API key rejected` on Test, while the model list loaded fine | Exactly the case rule 9 describes — listing never needed the key | Paste a fresh key from `ollama.com/settings/keys` and press Connect |
+| `Not found — this server may not offer that model` | The key is valid but the model is outside the subscription, or `base_url` ends in `/api` | Pick another model; the server field wants an origin, not an endpoint |
+| `Rate limited by Ollama` | 429 | Wait and press Test again |
+| Test errors with a JSON parse failure | `stream: false` was dropped from the request body | Rule 11 |
 | Connect hangs ~15s then errors | Wrong host, or a local daemon that is not running | `curl $base_url/api/tags`; for local, start Ollama.app |
 | `No rustls crypto provider is configured` (panic) | The `Once` was removed, or a new call path builds a `reqwest::Client` without it | Install the provider on that path too |
 | Key vanishes after a rebuild | `identifier` in `tauri.conf.json` changed | Rule 6; restore the identifier |
@@ -91,4 +119,8 @@ Identical on cloud and local; every other field is ignored.
 
 ## Checks
 
-`cargo test -- --ignored` in `apps/desktop/src-tauri/`. Three tests: the cloud listing (with a trailing slash), the unreachable-host error path, and a credential-store round trip that asserts an empty string deletes. They are `#[ignore]`d because they touch the real network and the real keychain, and CI runs only the node checks — see rule 5 of [[linux-release]]. The keychain test restores whatever key it found, so running it does not cost you your configuration.
+`cargo test -- --ignored --test-threads=1` in `apps/desktop/src-tauri/`. Five tests: the cloud listing (with a trailing slash), the unreachable-host error path, a credential-store round trip asserting an empty string deletes, the empty-model guard, and the one that pins rule 9 — with no key stored, `ollama_models` must still succeed while `ollama_check` must fail with a message naming `ollama.com/settings/keys`.
+
+`--test-threads=1` is required: several write the app's own real credential entry and in parallel they clobber each other. Each restores whatever key it found, so running them does not cost you your configuration.
+
+They are `#[ignore]`d because they touch the real network and the real keychain, and CI runs only the node checks — see rule 5 of [[linux-release]]. None of them needs a valid key: every assertion is about the unauthenticated path, which is what makes them runnable by anyone.

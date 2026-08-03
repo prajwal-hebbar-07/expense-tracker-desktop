@@ -1,8 +1,10 @@
 // Where the AI backend is pointed and which model it uses.
 //
-// One "Connect" button does both jobs — it saves the server and key, and proves
-// they work by listing models. A separate Save would let the user store a typo
-// and only discover it the next time a feature needed the model.
+// Connect saves the server and key and loads the model list. It deliberately
+// does NOT claim the key works: ollama.com answers /api/tags anonymously, so
+// the list looks identical with a wrong key, a revoked key, or none at all.
+// Proving the key takes a real completion — that is `ollama_check`, which runs
+// automatically once a model is chosen and again on demand from Test.
 //
 // The key field is WRITE-ONLY. The key lives in the OS credential store and no
 // command hands it back (see docs/ollama-flow.md), so this screen can say
@@ -14,8 +16,18 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Select from "./Select";
 import { getSettings, setSetting } from "./db";
-import { button, card, errorBox, h2, iconButton, input, label, noticeBox } from "./ui";
-import { Lightbulb } from "./icons";
+import {
+  button,
+  cancelButton,
+  card,
+  errorBox,
+  h2,
+  iconButton,
+  input,
+  label,
+  noticeBox,
+} from "./ui";
+import { Check, Lightbulb } from "./icons";
 
 /** ollama.com. A local daemon is `http://localhost:11434` and needs no key —
  *  the same two fields cover it, so there is no cloud/local mode switch. */
@@ -31,6 +43,9 @@ export default function OllamaSettings() {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** True only after a completion has come back. Not persisted: a key can be
+   *  revoked between launches, so a remembered tick would be a lie. */
+  const [verified, setVerified] = useState(false);
 
   useEffect(() => {
     Promise.all([getSettings(), invoke<boolean>("has_ollama_key")])
@@ -56,9 +71,20 @@ export default function OllamaSettings() {
       .finally(() => setBusy(false));
   }
 
+  /** Sends one real completion. This is the only call that can fail on a bad
+   *  key, so it is the only one whose success means anything. */
+  async function check(m: string, url: string) {
+    const reply = await invoke<string>("ollama_check", { baseUrl: url, model: m });
+    setVerified(true);
+    // Quoting what came back beats a green tick: it shows the round trip
+    // happened rather than asserting it did.
+    setNote(`Working — ${m} replied “${reply.slice(0, 80) || "(nothing)"}”.`);
+  }
+
   function connect() {
     const url = baseUrl.trim() || CLOUD_URL;
     run(async () => {
+      setVerified(false);
       if (keyDraft.trim()) {
         await invoke("set_ollama_key", { key: keyDraft.trim() });
         setHasKey(true);
@@ -68,14 +94,18 @@ export default function OllamaSettings() {
       await setSetting("base_url", url);
       setBaseUrl(url);
       setModels(names);
+
       // A saved model the server no longer offers is a silent wrong answer
       // later, so drop it here, where there is something to say about it.
       if (model && !names.includes(model)) {
         setModel("");
         await setSetting("model", "");
-        setNote(`Connected. ${names.length} models — your previous one is gone, pick another.`);
+        setNote(`${names.length} models loaded — your previous one is gone, pick another.`);
+      } else if (model) {
+        await check(model, url);
       } else {
-        setNote(`Connected. ${names.length} models available.`);
+        // Not "connected": nothing here has authenticated yet.
+        setNote(`${names.length} models loaded. Pick one to test the key.`);
       }
     });
   }
@@ -85,13 +115,20 @@ export default function OllamaSettings() {
       await invoke("set_ollama_key", { key: "" });
       setHasKey(false);
       setKeyDraft("");
+      setVerified(false);
       setNote("API key removed from this machine.");
     });
   }
 
   function chooseModel(next: string) {
-    setModel(next);
-    setSetting("model", next).catch((e) => setError(String(e)));
+    run(async () => {
+      setModel(next);
+      setVerified(false);
+      await setSetting("model", next);
+      // Test immediately: picking a model is the moment the user wants to know
+      // whether the whole chain works, and it costs a few tokens.
+      await check(next, baseUrl.trim() || CLOUD_URL);
+    });
   }
 
   return (
@@ -101,6 +138,12 @@ export default function OllamaSettings() {
         {model && (
           <span className="rounded-full bg-accent-weak px-2 py-0.5 text-xs text-accent">
             {model}
+          </span>
+        )}
+        {verified && (
+          <span className="flex items-center gap-1 rounded-full bg-credit-weak px-2 py-0.5 text-xs text-credit">
+            <Check className="size-3" />
+            Verified
           </span>
         )}
       </div>
@@ -165,7 +208,16 @@ export default function OllamaSettings() {
           onChange={chooseModel}
         />
         <button className={button} onClick={connect} disabled={busy}>
-          {busy ? "Connecting…" : "Connect"}
+          {busy ? "Working…" : "Connect"}
+        </button>
+        {/* Re-runs the completion without changing anything — for a key that
+            worked yesterday and may have been revoked since. */}
+        <button
+          className={cancelButton}
+          onClick={() => run(() => check(model, baseUrl.trim() || CLOUD_URL))}
+          disabled={busy || !model}
+        >
+          Test
         </button>
       </div>
 
