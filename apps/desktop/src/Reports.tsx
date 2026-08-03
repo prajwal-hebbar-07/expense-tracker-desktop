@@ -1,5 +1,5 @@
 import { formatAmount, formatAmountRound } from "./money";
-import { card, errorBox, h1, h2, pageWide } from "./ui";
+import { card, errorBox, h1, h2, lede, pageWide } from "./ui";
 import { Alert, Check, Info, Lightbulb, Repeat, Target } from "./icons";
 import PeriodPicker, { usePeriod } from "./PeriodPicker";
 import { FEED, within } from "./analyticsFeed";
@@ -45,7 +45,7 @@ export default function Reports() {
   return (
     <div className={pageWide}>
       <h1 className={h1}>Report</h1>
-      <p className="mt-1 text-sm text-muted">
+      <p className={lede}>
         Sample data. Every line below is derived from a figure in the feed — no advice
         that isn't backed by one of your own numbers.
       </p>
@@ -83,7 +83,7 @@ export default function Reports() {
                   return (
                     <article
                       key={f.title}
-                      className={`rounded-[10px] border bg-surface p-5 ${tone.ring}`}
+                      className={`rounded-2xl border bg-surface p-5 shadow-card ${tone.ring}`}
                     >
                       <div className="flex items-start gap-3">
                         <Icon className={`mt-0.5 size-5 shrink-0 ${tone.text}`} />
@@ -140,7 +140,10 @@ export default function Reports() {
               <h2 className={h2}>Same numbers, different angle</h2>
               <div className="mt-3 grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
                 {report.reframes.map((r) => (
-                  <article key={r.title} className="rounded-[10px] border border-line bg-surface p-5">
+                  <article
+                    key={r.title}
+                    className="rounded-2xl border border-line bg-surface p-5 shadow-card"
+                  >
                     <Repeat className="size-5 text-violet" />
                     <h3 className="mt-3 font-medium">{r.title}</h3>
                     <p className="mt-2 text-sm leading-relaxed text-muted">{r.body}</p>

@@ -5,21 +5,21 @@
    every element. `color-scheme` makes scrollbars follow along without any CSS
    of ours; the date picker and select popup are ours now, not the platform's.
 
-   Every surface sits inside a narrow 4–10% lightness band of the same cool
-   grey, so nothing glares after an hour. The only saturated pixels in the app
+   Every surface sits inside a narrow lightness band of the same muted neutral,
+   so nothing glares after an hour. The only saturated pixels in the app
    are the accent button, the active nav, and a signed amount. */
 :root {
   color-scheme: light dark;
-  --bg: #f4f5f7;
-  --rail: #e9ebef;
-  --surface: #fcfcfd;
+  --bg: #f5f7f5;
+  --rail: #eef2ef;
+  --surface: #ffffff;
   /* Inputs sit *below* the card they live on in light mode and above it in
      dark, which is what keeps a field readable as a field on either theme. */
-  --field: #fdfdfe;
-  --ink: #14181c;
-  --muted: #5c666f;
-  --line: #dfe3e8;
-  --accent: #0e7a57;
+  --field: #f8faf8;
+  --ink: #17211c;
+  --muted: #647168;
+  --line: #dfe6e1;
+  --accent: #147a57;
   --accent-ink: #f2fbf7;
   /* An alias, not a colour. Money in and "the app" are the same green now, so
      a credit amount and the primary button agree by construction rather than
@@ -48,7 +48,7 @@
 
   /* Weak twins: tile tints, active nav fill, selected menu option. Alpha, not
      a mixed hex, so they sit correctly on --surface and on --overlay both. */
-  --accent-weak: rgba(14, 122, 87, 0.1);
+  --accent-weak: rgba(20, 122, 87, 0.1);
   --credit-weak: var(--accent-weak);
   --danger-weak: rgba(192, 50, 74, 0.09);
   /* Declared for parity with the other hues. No row fills with it — a standing
@@ -58,28 +58,31 @@
   --series-b-weak: rgba(46, 95, 208, 0.1);
   --warn-weak: rgba(180, 83, 9, 0.1);
 
-  --hover: rgba(16, 20, 26, 0.045);
-  --focus: rgba(14, 122, 87, 0.28);
-  --shadow: 0 1px 2px rgba(16, 20, 26, 0.06), 0 1px 1px rgba(16, 20, 26, 0.04);
+  --hover: rgba(23, 33, 28, 0.05);
+  --focus: rgba(20, 122, 87, 0.25);
+  --shadow: 0 1px 2px rgba(23, 33, 28, 0.04), 0 8px 24px rgba(23, 33, 28, 0.035);
+  --app-background:
+    radial-gradient(circle at 88% 0%, rgba(20, 122, 87, 0.07), transparent 30rem),
+    var(--bg);
 
   /* The floating layer. Recipe is all three parts: --overlay surface + 1px
      --line + --shadow-menu. Border alone fails in dark (a menu over a card is
-     two 1px lines); shadow alone fails in light (--surface on --bg is a 1.5%
-     step). Contrast on --overlay: ink 18.3:1, muted 5.9:1. */
+     two 1px lines); shadow alone fails in light, where the surface step is
+     deliberately subtle. */
   --overlay: #ffffff;
   --menu-shadow: 0 12px 28px rgba(16, 20, 26, 0.14);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0f1113;
-    --rail: #0a0b0d;
-    --surface: #16191c;
-    --field: #101315;
-    --ink: #e8ebed;
-    --muted: #9aa3ab;
-    --line: #24282c;
-    --accent: #4fd1a5;
+    --bg: #0e1210;
+    --rail: #0a0e0c;
+    --surface: #151a17;
+    --field: #101512;
+    --ink: #e7ece9;
+    --muted: #98a49d;
+    --line: #273029;
+    --accent: #55d6a9;
     --accent-ink: #06231a;
     --credit: var(--accent);
     --violet: #9b8af2;
@@ -88,7 +91,7 @@
     --series-b: #7aa2f7;
     --warn: #d97706;
 
-    --accent-weak: rgba(79, 209, 165, 0.14);
+    --accent-weak: rgba(85, 214, 169, 0.14);
     --credit-weak: var(--accent-weak);
     --danger-weak: rgba(229, 103, 122, 0.13);
     --debit-weak: rgba(240, 140, 107, 0.14);
@@ -97,13 +100,16 @@
     --warn-weak: rgba(217, 119, 6, 0.16);
 
     --hover: rgba(255, 255, 255, 0.045);
-    --focus: rgba(79, 209, 165, 0.32);
-    /* No drop shadow in dark: separation is 1px --line plus a +7% lightness
-       step. A shadow on a near-black surface is just a darker smudge. */
-    --shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+    --focus: rgba(85, 214, 169, 0.3);
+    /* The border carries separation in dark; the broad shadow only adds depth
+       where layers overlap. */
+    --shadow: 0 1px 0 rgba(0, 0, 0, 0.35), 0 12px 28px rgba(0, 0, 0, 0.12);
+    --app-background:
+      radial-gradient(circle at 88% 0%, rgba(85, 214, 169, 0.07), transparent 30rem),
+      var(--bg);
 
-    /* +7% over --surface. Contrast on it: ink 13.4:1, muted 6.3:1. */
-    --overlay: #1e2226;
+    /* A small lightness step over --surface keeps menus distinct from cards. */
+    --overlay: #1e2521;
     --menu-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
   }
 }
@@ -163,6 +169,25 @@ html {
   -webkit-font-smoothing: antialiased;
 }
 
+body {
+  margin: 0;
+  background: var(--bg);
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: var(--accent-weak);
+}
+
+.app-shell {
+  background: var(--app-background);
+}
+
 /* Our scrollbar, for the one place a menu can overflow. The platform one is a
    light box over a dark overlay in the WebView and `color-scheme` does not
    reach inside a popup we drew ourselves. */
@@ -192,8 +217,18 @@ html {
 .menu-in {
   animation: menu-in 120ms ease-out;
 }
+.page-in {
+  animation: page-in 180ms ease-out;
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .menu-in {
+  .menu-in,
+  .page-in {
     animation: none;
   }
 }

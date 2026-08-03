@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { db } from "./db";
 import { fromMinor, formatAmount } from "./money";
-import { button, iconButton, cancelButton, card, errorBox, h1, page } from "./ui";
+import { button, iconButton, cancelButton, card, errorBox, h1, lede, page } from "./ui";
 import ConfirmDelete from "./ConfirmDelete";
 import { ArrowIn, ArrowOut, ArrowsLeftRight, CardIn, CardOut } from "./icons";
 import { Fields } from "./TransactionFields";
@@ -191,6 +191,7 @@ export default function Transactions() {
   return (
     <div className={page}>
       <h1 className={h1}>Transactions</h1>
+      <p className={lede}>Review, correct, or remove every movement in your ledger.</p>
 
       {error && (
         <p role="alert" className={errorBox}>

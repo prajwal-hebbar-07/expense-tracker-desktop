@@ -1,7 +1,7 @@
 import { ComponentType, useEffect, useState } from "react";
 import { db } from "./db";
 import { formatAmount, formatAmountRound } from "./money";
-import { button, card, errorBox, h1, h2, noticeBox, page } from "./ui";
+import { button, card, errorBox, h1, h2, lede, noticeBox, page } from "./ui";
 import { ArrowsLeftRight, Bank, Calendar, Card } from "./icons";
 import { nextDue } from "./cardBill";
 import { at } from "./day";
@@ -44,7 +44,7 @@ function Balance({
   subTint?: string;
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-3 rounded-[10px] border border-line bg-surface p-4 shadow-card">
+    <div className="flex min-w-0 flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-card">
       <div className="flex items-center gap-2 text-muted">
         <Icon className={`size-[18px] shrink-0 ${tint}`} />
         <span className="truncate text-[11px] font-medium tracking-[0.07em] uppercase">
@@ -145,6 +145,7 @@ export default function AddTransaction({ go }: { go: Go }) {
   return (
     <div className={page}>
       <h1 className={h1}>Overview</h1>
+      <p className={lede}>Your balances at a glance, with a quick way to record what moved.</p>
 
       {error && (
         <p role="alert" className={errorBox}>

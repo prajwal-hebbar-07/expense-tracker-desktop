@@ -56,7 +56,7 @@ export default function Stat({
   const Mark = pct === null ? null : MARK[direction(pct)];
 
   return (
-    <div className="flex min-h-[118px] flex-col gap-2 rounded-[10px] border border-line bg-surface p-3.5 shadow-card">
+    <div className="flex min-h-[124px] flex-col gap-2 rounded-2xl border border-line bg-surface p-4 shadow-card">
       <div className="flex items-center gap-2.5">
         <span className={`grid size-10 shrink-0 place-items-center rounded-full ${TINT[tint]}`}>
           <Icon className="size-6" />

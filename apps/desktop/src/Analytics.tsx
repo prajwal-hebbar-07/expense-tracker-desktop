@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { at } from "./day";
 import { formatAmount, formatAmountRound } from "./money";
-import { card, errorBox, h1, h2, pageWide } from "./ui";
+import { card, errorBox, h1, h2, lede, pageWide } from "./ui";
 import Stat from "./Stat";
 import { change } from "./delta";
 import PeriodPicker, { usePeriod } from "./PeriodPicker";
@@ -269,7 +269,7 @@ export default function Analytics() {
   return (
     <div className={pageWide}>
       <h1 className={h1}>Analytics</h1>
-      <p className="mt-1 text-[12.5px] text-muted">
+      <p className={lede}>
         Sample data — this page reads a consolidated feed, not the ledger.
       </p>
 

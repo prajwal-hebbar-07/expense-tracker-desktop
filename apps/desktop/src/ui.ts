@@ -2,10 +2,8 @@
 // does not fork its own slightly-different input and button. Colours are the
 // semantic tokens from App.css, so nothing here needs a `dark:` twin.
 //
-// Sizes are the design system's, not Tailwind's defaults: control height 34,
-// radius 6 on controls / 10 on cards, field gap 12. They are written as
-// arbitrary values (`h-[34px]`) on purpose — rounding 34 to `h-9` (36) once is
-// invisible, but doing it in four places stops the four-field row aligning.
+// Shared dimensions keep controls and surfaces aligned across every screen:
+// 40px controls, 8px control radius, 16px card radius, 12px field gap.
 
 /** Page shell: one column, centred, breathing room that grows with the window.
  *
@@ -18,14 +16,17 @@
  *  `short:` trims the vertical padding under 700px of viewport — a quarter-screen
  *  tile is ~450px tall, where py-10 top and bottom is 80px of the 450 spent
  *  before the first figure. */
-export const page = "mx-auto w-full max-w-5xl px-5 py-8 sm:px-8 sm:py-10 short:py-4";
+export const page =
+  "mx-auto w-full max-w-5xl px-4 py-7 sm:px-8 sm:py-9 lg:px-10 lg:py-10 short:py-4";
 /** Dashboard width. Four summary tiles and a bar chart need more room than a
  *  form does; at the `page` cap the tiles truncate their own figures. */
-export const pageWide = "mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 sm:py-10 short:py-4";
-export const h1 = "text-[26px] font-semibold tracking-[-0.015em] leading-tight";
-export const h2 = "text-[15px] font-semibold tracking-tight";
+export const pageWide =
+  "mx-auto w-full max-w-7xl px-4 py-7 sm:px-8 sm:py-9 lg:px-10 lg:py-10 short:py-4";
+export const h1 = "text-[28px] font-semibold tracking-[-0.025em] leading-tight sm:text-[30px]";
+export const h2 = "text-[16px] font-semibold tracking-[-0.01em]";
+export const lede = "mt-1.5 max-w-2xl text-[13.5px] leading-relaxed text-muted";
 /** Grouping surface. Sections read as separate objects instead of one long page. */
-export const card = "rounded-[10px] border border-line bg-surface p-5 shadow-card";
+export const card = "rounded-2xl border border-line bg-surface p-4 shadow-card sm:p-5";
 
 /** Field label: 11/500 caps, +7% tracking. */
 export const label = "text-[11px] font-medium tracking-[0.07em] text-muted uppercase";
@@ -39,14 +40,14 @@ export const focusRing =
 export const input =
   // No min-width here: call sites set their own, and two competing min-w
   // utilities on one element resolve by stylesheet order, not by call site.
-  "h-[34px] rounded-md border border-line bg-field px-2.5 text-[13.5px] text-ink " +
+  "h-10 rounded-lg border border-line bg-field px-3 text-[13.5px] text-ink " +
   "placeholder:text-muted transition-colors hover:border-muted " +
   "focus:border-accent focus:shadow-[0_0_0_3px_var(--focus)] focus:outline-none " +
   "disabled:opacity-55";
 
-/** The same box, sized for a multi-line control — `h-[34px]` would collapse it. */
+/** The same box, sized for a multi-line control. */
 export const textarea =
-  "min-h-20 rounded-md border border-line bg-field px-2.5 py-2 text-[13.5px] text-ink " +
+  "min-h-24 rounded-lg border border-line bg-field px-3 py-2.5 text-[13.5px] text-ink " +
   "placeholder:text-muted transition-colors hover:border-muted " +
   "focus:border-accent focus:shadow-[0_0_0_3px_var(--focus)] focus:outline-none";
 
@@ -57,31 +58,31 @@ export const inputError = "border-danger! bg-danger-weak!";
 export const fieldError = "mt-1 text-[11.5px] text-danger";
 
 export const button =
-  "h-[34px] rounded-md bg-accent px-4 text-[13px] font-medium text-accent-ink cursor-pointer " +
+  "h-10 rounded-lg bg-accent px-4 text-[13px] font-medium text-accent-ink cursor-pointer " +
   "transition-[filter,opacity] hover:brightness-[1.08] active:brightness-95 " +
   "focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_var(--focus)] " +
   "disabled:cursor-default disabled:opacity-[.38] disabled:hover:brightness-100";
 export const cancelButton =
-  "h-[34px] rounded-md border border-line bg-surface px-3.5 text-[13px] font-medium text-ink " +
+  "h-10 rounded-lg border border-line bg-surface px-3.5 text-[13px] font-medium text-ink " +
   "cursor-pointer transition-colors hover:border-muted " +
   "focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_var(--focus)]";
 export const iconButton =
-  "rounded-md px-2 py-1 text-[12.5px] text-muted cursor-pointer transition-colors " +
+  "rounded-lg px-2.5 py-1.5 text-[12.5px] text-muted cursor-pointer transition-colors " +
   "hover:bg-hover hover:text-ink " +
   "focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_var(--focus)]";
 export const dangerButton =
   // text-surface, not text-white: danger is a light red in dark mode, where
   // white on it is unreadable and the page background is the contrasting colour.
-  "h-[34px] rounded-md bg-danger px-3.5 text-[13px] font-medium text-surface cursor-pointer " +
+  "h-10 rounded-lg bg-danger px-3.5 text-[13px] font-medium text-surface cursor-pointer " +
   "transition-[filter] hover:brightness-[1.08] active:brightness-95 " +
   "focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_var(--focus)]";
 
 export const errorBox =
-  "mt-4 rounded-md border border-danger bg-danger-weak px-3.5 py-2.5 text-[12.5px] text-danger";
+  "mt-4 rounded-xl border border-danger bg-danger-weak px-3.5 py-2.5 text-[12.5px] text-danger";
 export const noticeBox =
-  "mt-4 rounded-md border border-credit bg-credit-weak px-3.5 py-2.5 text-[12.5px] text-credit";
+  "mt-4 rounded-xl border border-credit bg-credit-weak px-3.5 py-2.5 text-[12.5px] text-credit";
 
 /** The floating layer, shared by the select menu, the calendar and the chart
  *  tooltip. All three parts are required — see the --overlay note in App.css. */
 export const overlay =
-  "rounded-md border border-line bg-overlay shadow-menu menu-in";
+  "rounded-xl border border-line bg-overlay shadow-menu menu-in";

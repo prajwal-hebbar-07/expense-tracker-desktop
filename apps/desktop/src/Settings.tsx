@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { db } from "./db";
 import { toMinor, fromMinor, formatAmount } from "./money";
-import { input, button, iconButton, card, errorBox, h1, h2, page } from "./ui";
+import { input, button, iconButton, card, errorBox, h1, h2, lede, page } from "./ui";
 import ConfirmDelete from "./ConfirmDelete";
 
 type Account = { id: number; bank: string; balance: number; currency: string };
@@ -139,6 +139,7 @@ export default function Settings() {
   return (
     <div className={page}>
       <h1 className={h1}>Settings</h1>
+      <p className={lede}>Manage the accounts and cards that keep your ledger accurate.</p>
 
       {error && (
         <p role="alert" className={errorBox}>

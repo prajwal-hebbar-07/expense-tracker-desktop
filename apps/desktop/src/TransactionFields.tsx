@@ -158,7 +158,7 @@ function Amount({
         Amount
       </label>
       <div className="relative">
-        <span className="pointer-events-none absolute top-0 left-2.5 flex h-[34px] items-center text-[13.5px] text-muted">
+        <span className="pointer-events-none absolute top-0 left-3 flex h-10 items-center text-[13.5px] text-muted">
           ₹
         </span>
         {/* Right-aligned and tabular: a column of amounts is read by comparing

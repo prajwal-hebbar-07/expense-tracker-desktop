@@ -82,7 +82,7 @@ export default function PeriodPicker({
   };
 
   return (
-    <div className="mt-4 flex min-h-[52px] flex-col gap-2.5 rounded-[10px] border border-line bg-surface px-3 py-2.5 shadow-card sm:flex-row sm:items-center sm:gap-4">
+    <div className="mt-5 flex min-h-14 flex-col gap-2.5 rounded-2xl border border-line bg-surface px-3 py-2.5 shadow-card sm:flex-row sm:items-center sm:gap-4">
       <div
         role="tablist"
         aria-label="Period"
@@ -93,7 +93,7 @@ export default function PeriodPicker({
           const at = PERIODS.findIndex((p) => p.id === period);
           choose(PERIODS[(at + step + PERIODS.length) % PERIODS.length].id);
         }}
-        className="flex h-[34px] shrink-0 gap-0.5 rounded-lg border border-line bg-field p-[3px] focus-within:shadow-[0_0_0_3px_var(--focus)]"
+        className="flex h-10 shrink-0 gap-0.5 rounded-xl border border-line bg-field p-[3px] focus-within:shadow-[0_0_0_3px_var(--focus)]"
       >
         {PERIODS.map((p) => (
           <button
@@ -103,7 +103,7 @@ export default function PeriodPicker({
             // Roving: one stop for the whole group, then ←/→ inside it.
             tabIndex={period === p.id ? 0 : -1}
             onClick={() => choose(p.id)}
-            className={`h-7 flex-1 cursor-pointer rounded-md px-3 text-[12.5px] font-medium transition-colors outline-none sm:flex-none ${
+            className={`h-8 flex-1 cursor-pointer rounded-lg px-3 text-[12.5px] font-medium transition-colors outline-none sm:flex-none ${
               period === p.id
                 ? "bg-surface text-ink shadow-card"
                 : "text-muted hover:bg-hover"
