@@ -3,6 +3,7 @@ import { db } from "./db";
 import { toMinor, fromMinor, formatAmount } from "./money";
 import { input, button, iconButton, card, errorBox, h1, h2, lede, page } from "./ui";
 import ConfirmDelete from "./ConfirmDelete";
+import OllamaSettings from "./OllamaSettings";
 import { Bank, Card as CardIcon } from "./icons";
 
 type Account = { id: number; bank: string; balance: number; currency: string };
@@ -374,6 +375,8 @@ export default function Settings() {
           </form>
         </div>
       </section>
+
+      <OllamaSettings />
     </div>
   );
 }

@@ -90,7 +90,7 @@ CREATE TABLE expense (
 CREATE INDEX idx_expense_spent_at ON expense (spent_at);
 ```
 
-`settings` is a separate key/value table (`key TEXT PRIMARY KEY`, `value TEXT NOT NULL`) holding only `base_url` and `model`. The Ollama API key is **not** a settings row — it lives in the macOS Keychain; see [[ollama-flow]].
+`settings` is a separate key/value table (`key TEXT PRIMARY KEY`, `value TEXT NOT NULL`) holding only `base_url` and `model`, read and written by `getSettings()` / `setSetting()` in `apps/desktop/src/db.ts`. The Ollama API key is **not** a settings row — it lives in the OS credential store (Keychain on macOS, Secret Service on Linux); see [[ollama-flow]].
 
 **Nothing else belongs in `settings`.** Despite the name, it is not where the Settings *screen* stores its data: bank accounts and credit cards are entity lists with their own `account` and `card` tables, added by migration 2. See [[settings-schema]]. A JSON array stuffed into a `value` column is the anti-pattern that node exists to prevent.
 

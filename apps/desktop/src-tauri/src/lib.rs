@@ -116,9 +116,136 @@ fn migrations() -> Vec<Migration> {
     ]
 }
 
+// ---------------------------------------------------------------------------
+// Ollama
+//
+// The API key bills to a paid Ollama subscription, so it lives in the OS
+// credential store (Keychain on macOS, Secret Service on Linux) and never in
+// the `settings` table, a dotfile, or the repo. Only `base_url` and `model` are
+// settings rows. See docs/ollama-flow.md.
+//
+// Every call is made here rather than with `fetch` in the WebView so the key
+// never enters a context that can execute loaded script — rule 2 of
+// docs/stack.md — and so CORS / OLLAMA_ORIGINS never comes up.
+
+/// Must match `identifier` in `tauri.conf.json`. Changing it orphans the key.
+const KEY_SERVICE: &str = "com.hebbar.desktop";
+const KEY_ACCOUNT: &str = "ollama";
+
+fn key_entry() -> Result<keyring::Entry, String> {
+    keyring::Entry::new(KEY_SERVICE, KEY_ACCOUNT).map_err(|e| e.to_string())
+}
+
+/// Credential-store calls block — on Linux they are a round trip to a D-Bus
+/// service — so they stay off the async runtime's worker threads.
+async fn blocking<T, F>(f: F) -> Result<T, String>
+where
+    F: FnOnce() -> Result<T, String> + Send + 'static,
+    T: Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(f)
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Stores the key, or forgets it when `key` is empty. Clearing the field is the
+/// only way to remove a key, so an empty string must not be written as one.
+#[tauri::command]
+async fn set_ollama_key(key: String) -> Result<(), String> {
+    blocking(move || {
+        let entry = key_entry()?;
+        if key.is_empty() {
+            return match entry.delete_credential() {
+                // Deleting a key that was never set is the state the caller asked for.
+                Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+                Err(e) => Err(e.to_string()),
+            };
+        }
+        entry.set_password(&key).map_err(|e| e.to_string())
+    })
+    .await
+}
+
+/// Whether a key is stored. Deliberately not a getter: nothing hands the key
+/// back to the WebView, so the field on the Settings screen is write-only.
+#[tauri::command]
+async fn has_ollama_key() -> bool {
+    blocking(|| Ok(key_entry()?.get_password().is_ok()))
+        .await
+        .unwrap_or(false)
+}
+
+/// `/api/tags` answers with the same shape on a local daemon and on
+/// ollama.com, so one command serves both. Every other field is ignored.
+#[derive(serde::Deserialize)]
+struct Tags {
+    models: Vec<Tag>,
+}
+
+#[derive(serde::Deserialize)]
+struct Tag {
+    name: String,
+}
+
+/// Lists the models the configured Ollama can serve, sorted.
+///
+/// The key comes from the credential store, never from the caller. A missing
+/// key is not an error: a local daemon has no auth at all, and ollama.com
+/// answers this one endpoint anonymously — so the catalogue loads before the
+/// user has pasted anything, and a bad key shows up as a 401 here.
+#[tauri::command]
+async fn ollama_models(base_url: String) -> Result<Vec<String>, String> {
+    let api_key = blocking(|| Ok(key_entry()?.get_password().ok())).await?;
+
+    // reqwest's `rustls-no-provider` leaves the crypto provider to us, and the
+    // alternative (`rustls`) pins aws-lc-rs, which is a cmake + C build in CI.
+    // ring is already in the tree via rustls itself, so this costs no new crate.
+    // Installed here rather than in `run()` so the tests get it too.
+    static TLS: std::sync::Once = std::sync::Once::new();
+    TLS.call_once(|| {
+        // Err only means someone else installed one first, which is fine.
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    });
+
+    let client = reqwest::Client::builder()
+        // Without this a wrong host leaves the button spinning until the OS
+        // gives up, which on macOS is well over a minute.
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    // trim_end_matches: a pasted URL ending in `/` would otherwise become
+    // `https://ollama.com//api/tags`, which 404s.
+    let mut req = client.get(format!("{}/api/tags", base_url.trim_end_matches('/')));
+    if let Some(key) = api_key.filter(|k| !k.is_empty()) {
+        req = req.bearer_auth(key);
+    }
+
+    let res = req.send().await.map_err(|e| e.to_string())?;
+    if !res.status().is_success() {
+        return Err(format!("Ollama replied {}", res.status()));
+    }
+
+    let mut names: Vec<String> = res
+        .json::<Tags>()
+        .await
+        .map_err(|e| e.to_string())?
+        .models
+        .into_iter()
+        .map(|m| m.name)
+        .collect();
+    names.sort();
+    Ok(names)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![
+            ollama_models,
+            set_ollama_key,
+            has_ollama_key
+        ])
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
@@ -129,4 +256,53 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+// Touches the real ollama.com and the real Keychain, so these are #[ignore]d —
+// CI runs only the node checks (see .github/workflows/release.yml) and neither
+// the network nor a login keychain has any business deciding whether a release
+// ships. Run them by hand after touching the commands:
+//
+//   cargo test -- --ignored --nocapture
+//
+// The keychain test writes to the app's own real entry and restores whatever
+// was there, so running it does not cost you your configured key.
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    #[ignore]
+    async fn lists_cloud_models_and_tolerates_a_trailing_slash() {
+        let models = super::ollama_models("https://ollama.com/".into())
+            .await
+            .expect("ollama.com should answer /api/tags anonymously");
+        assert!(!models.is_empty(), "expected a non-empty catalogue");
+        assert!(models.windows(2).all(|w| w[0] <= w[1]), "expected sorted names");
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn a_bad_host_is_an_error_not_a_panic() {
+        assert!(super::ollama_models("http://127.0.0.1:1".into()).await.is_err());
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn key_round_trips_and_an_empty_string_clears_it() {
+        let restore = super::blocking(|| Ok(super::key_entry()?.get_password().ok()))
+            .await
+            .expect("credential store should be reachable");
+
+        super::set_ollama_key("test-key".into()).await.unwrap();
+        assert!(super::has_ollama_key().await);
+
+        super::set_ollama_key(String::new()).await.unwrap();
+        assert!(!super::has_ollama_key().await, "empty string must delete, not store \"\"");
+
+        // Clearing twice must not error — the second delete finds no entry.
+        super::set_ollama_key(String::new()).await.unwrap();
+
+        if let Some(key) = restore {
+            super::set_ollama_key(key).await.unwrap();
+        }
+    }
 }

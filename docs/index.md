@@ -2,13 +2,13 @@
 id: index
 type: reference
 status: active
-updated: 2026-08-02
+updated: 2026-08-03
 links: []
 ---
 
 # Map
 
-Twenty-four nodes is past the point where the graph needs one. Start from the question, not the top.
+Twenty-five nodes is past the point where the graph needs one. Start from the question, not the top.
 
 ## Where do I start?
 
@@ -24,6 +24,7 @@ Twenty-four nodes is past the point where the graph needs one. Start from the qu
 | How do I build a dropdown, a menu, a popup? | [[custom-select]], [[date-picker]], [[floating-layer]] |
 | How does the layout respond to width? | [[nav-breakpoints]] |
 | I am touching a screen | [[analytics-page]], [[report-page]], [[settings-schema]] |
+| How does the app reach an LLM, and where is the API key? | [[ollama-flow]] |
 | I am touching a chart or a tile | [[summary-tile-delta]], [[chart-outlier]], [[filter-row]] |
 | Why does this dialog / confirm not work? | [[webview-dialogs]] |
 | Money moving between own accounts | [[self-transfer]] |
