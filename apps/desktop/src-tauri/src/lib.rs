@@ -289,33 +289,38 @@ struct ChatMessage {
     content: String,
 }
 
-/// Proves the whole path end to end and returns what the model actually said.
-///
-/// `/api/chat` is used rather than a cheaper auth-only endpoint (`/api/ps` also
-/// 401s) because the question the user is asking is "can I use this model",
-/// and only a real completion answers it: the key can be valid while the model
-/// is one the subscription does not cover. It costs a few tokens.
+/// One completion, returned as text. Every model call in the app goes through
+/// here, so there is one place that sets `stream: false` and one place that
+/// turns a status into a sentence.
 ///
 /// `stream: false` is required — the streaming default answers with a sequence
 /// of NDJSON objects that `json::<Chat>()` cannot parse.
-#[tauri::command]
-async fn ollama_check(base_url: String, model: String) -> Result<String, String> {
+///
+/// `json` asks Ollama to constrain the output to valid JSON. It makes a
+/// caller that parses the reply far more likely to succeed, but it is not a
+/// schema: the caller still has to validate what came back.
+async fn chat(base_url: &str, model: &str, prompt: &str, json: bool) -> Result<String, String> {
     if model.trim().is_empty() {
         return Err("Pick a model first.".into());
     }
 
+    let mut body = serde_json::json!({
+        "model": model,
+        "messages": [{ "role": "user", "content": prompt }],
+        "stream": false,
+    });
+    if json {
+        body["format"] = serde_json::Value::String("json".into());
+    }
+
     let res = ollama_request(
-        &base_url,
+        base_url,
         reqwest::Method::POST,
         "/api/chat",
-        std::time::Duration::from_secs(60),
+        std::time::Duration::from_secs(120),
     )
     .await?
-    .json(&serde_json::json!({
-        "model": model,
-        "messages": [{ "role": "user", "content": "Reply with the single word: ok" }],
-        "stream": false,
-    }))
+    .json(&body)
     .send()
     .await
     .map_err(|e| e.to_string())?;
@@ -328,8 +333,26 @@ async fn ollama_check(base_url: String, model: String) -> Result<String, String>
         .message
         .content;
 
-    // A model that answers at all is a working model, whatever it chose to say.
     Ok(reply.trim().to_string())
+}
+
+/// Proves the whole path end to end and returns what the model actually said.
+///
+/// `/api/chat` is used rather than a cheaper auth-only endpoint (`/api/ps` also
+/// 401s) because the question the user is asking is "can I use this model",
+/// and only a real completion answers it: the key can be valid while the model
+/// is one the subscription does not cover. It costs a few tokens.
+#[tauri::command]
+async fn ollama_check(base_url: String, model: String) -> Result<String, String> {
+    // A model that answers at all is a working model, whatever it chose to say.
+    chat(&base_url, &model, "Reply with the single word: ok", false).await
+}
+
+/// A prompt whose answer is meant to be parsed. Same key, same host, same
+/// error sentences as `ollama_check` — only `format: "json"` differs.
+#[tauri::command]
+async fn ollama_json(base_url: String, model: String, prompt: String) -> Result<String, String> {
+    chat(&base_url, &model, &prompt, true).await
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -338,6 +361,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             ollama_models,
             ollama_check,
+            ollama_json,
             set_ollama_key,
             has_ollama_key
         ])

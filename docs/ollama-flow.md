@@ -3,14 +3,14 @@ id: ollama-flow
 type: decision
 status: active
 updated: 2026-08-03
-links: [stack, persistence-sqlite, settings-schema, linux-release]
+links: [stack, persistence-sqlite, settings-schema, linux-release, expense-categories]
 ---
 
 # Reaching Ollama
 
 The app talks to **Ollama Cloud (`https://ollama.com`) by default**, with a Bearer key from the user's paid subscription, and to a local daemon (`http://localhost:11434`, no key) by typing that URL into the same field. There is no cloud/local mode switch: the two differ only by a `base_url` value and whether a key is present. Going direct to the cloud drops the requirement that Ollama.app be installed and running; the cost is one real secret to manage, which is what most of this node is about.
 
-The Settings screen (`apps/desktop/src/OllamaSettings.tsx`) is the only UI: a server field, a write-only key field, **Connect**, a model dropdown, and **Test**. Connect saves and lists models; choosing a model then fires a real one-word completion and quotes the reply back, which is the only thing that can prove a key. Configured 2026-08-03. Nothing else consumes the chosen model yet — this node covers configuration only.
+The Settings screen (`apps/desktop/src/OllamaSettings.tsx`) is the only UI: a server field, a write-only key field, **Connect**, a model dropdown, and **Test**. Connect saves and lists models; choosing a model then fires a real one-word completion and quotes the reply back, which is the only thing that can prove a key. Configured 2026-08-03. This node covers configuration and the transport; [[expense-categories]] is the one feature that spends the model.
 
 ## Rules for an agent working here
 
@@ -34,9 +34,12 @@ The Settings screen (`apps/desktop/src/OllamaSettings.tsx`) is the only UI: a se
 | Command | Signature | Notes |
 |---|---|---|
 | `ollama_models` | `(base_url: String) -> Result<Vec<String>, String>` | `GET {base_url}/api/tags`, 15s timeout, names sorted. **Says nothing about the key** — rule 9 |
-| `ollama_check` | `(base_url: String, model: String) -> Result<String, String>` | `POST {base_url}/api/chat`, 60s timeout. Returns the model's reply. The only call that proves a key |
+| `ollama_check` | `(base_url: String, model: String) -> Result<String, String>` | One fixed prompt, plain text. Returns the model's reply. The only call that proves a key |
+| `ollama_json` | `(base_url: String, model: String, prompt: String) -> Result<String, String>` | Caller's prompt with `format: "json"`. Valid JSON, **not** a schema — validate the reply. Used by [[expense-categories]] |
 | `set_ollama_key` | `(key: String) -> Result<(), String>` | Empty string **deletes**; deleting a key that was never set is `Ok` |
 | `has_ollama_key` | `() -> bool` | False on any error, including an unreachable credential store |
+
+Both commands are wrappers over one private `chat(base_url, model, prompt, json)`, which is where `stream: false`, the 120s timeout and the empty-model guard live. Add a third caller there, not with a second `/api/chat` body.
 
 `ollama_request()` builds every outbound call — it installs the TLS provider, reads the key, and joins the path. Add endpoints through it, not with a fresh `reqwest::Client`, or the new path silently loses the key and the crypto provider. `check_status()` turns a non-2xx into the sentence the UI shows.
 

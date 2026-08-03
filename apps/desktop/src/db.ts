@@ -12,6 +12,11 @@ export const db = Database.load("sqlite:expenses.db");
 // These live in db.ts rather than a settings.ts because that filename collides
 // with Settings.tsx on a case-insensitive filesystem, which tsc rejects.
 
+/** The default `base_url`: ollama.com. A local daemon is `http://localhost:11434`
+ *  and needs no key. Lives here rather than in OllamaSettings.tsx because every
+ *  screen that calls a model has to fall back to the same value. */
+export const CLOUD_URL = "https://ollama.com";
+
 /** Every row, as an object. There are three keys; paging this is not a concern. */
 export async function getSettings(): Promise<Record<string, string>> {
   const rows = await (await db).select<{ key: string; value: string }[]>(

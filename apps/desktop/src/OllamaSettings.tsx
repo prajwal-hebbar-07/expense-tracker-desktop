@@ -15,7 +15,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Select from "./Select";
-import { getSettings, setSetting } from "./db";
+import { CLOUD_URL, getSettings, setSetting } from "./db";
 import {
   button,
   cancelButton,
@@ -29,10 +29,8 @@ import {
 } from "./ui";
 import { Check, Lightbulb } from "./icons";
 
-/** ollama.com. A local daemon is `http://localhost:11434` and needs no key —
- *  the same two fields cover it, so there is no cloud/local mode switch. */
-const CLOUD_URL = "https://ollama.com";
-
+/** CLOUD_URL comes from db.ts: a local daemon at `http://localhost:11434` needs
+ *  no key, and the same two fields cover it, so there is no cloud/local switch. */
 export default function OllamaSettings() {
   const [baseUrl, setBaseUrl] = useState(CLOUD_URL);
   /** What the user has typed now, never the stored key. */

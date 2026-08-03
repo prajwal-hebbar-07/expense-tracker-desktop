@@ -1,16 +1,29 @@
 import { useEffect, useState } from "react";
-import { db } from "./db";
+import { invoke } from "@tauri-apps/api/core";
+import { CLOUD_URL, db, getSettings } from "./db";
 import { fromMinor, formatAmount } from "./money";
-import { button, iconButton, cancelButton, card, errorBox, h1, lede, page } from "./ui";
+import {
+  button,
+  iconButton,
+  cancelButton,
+  card,
+  errorBox,
+  h1,
+  lede,
+  noticeBox,
+  page,
+} from "./ui";
 import ConfirmDelete from "./ConfirmDelete";
 import { ArrowIn, ArrowOut, ArrowsLeftRight, CardIn, CardOut } from "./icons";
 import { Fields } from "./TransactionFields";
 import { Draft, Errors, cardHint, cardLabel, sourceOf, toParams } from "./transactionForm";
 import { outstandingAround } from "./cardBill";
+import { batches, buildPrompt, parseCategories } from "./categorize";
 import {
   TRANSACTIONS,
   UPDATE_TRANSACTION,
   DELETE_TRANSACTION,
+  SET_CATEGORY,
   ACCOUNT_BALANCES,
   CARD_OUTSTANDING,
 } from "./queries";
@@ -26,6 +39,8 @@ type Row = {
   account_id: number | null;
   card_id: number | null;
   to_account_id: number | null;
+  /** '' until a categorisation run files it — see docs/expense-categories.md. */
+  category: string;
   source: string | null;
   destination: string | null;
 };
@@ -101,6 +116,31 @@ const day = (spentAt: string) =>
     year: "numeric",
   });
 
+/** The two readings of the same list. Ledger is the ledger: every row, newest
+ *  first, uncategorised ones included — which is where a new transaction lives
+ *  until the next run files it. Categories drops what has no category, because
+ *  an "Uncategorised" group here would just be the ledger's tail printed twice.
+ */
+type View = "ledger" | "categories";
+
+/** Categorised rows only, grouped by category, biggest spend first — the order
+ *  that answers "where did it go". Rows arrive newest-first and `sort` is
+ *  stable, so each group keeps its dates in order. */
+function byCategory(rows: Row[]) {
+  const total = new Map<string, number>();
+  for (const r of rows) {
+    if (r.category) total.set(r.category, (total.get(r.category) ?? 0) + r.amount);
+  }
+  const list = rows
+    .filter((r) => r.category)
+    .sort(
+      (a, b) =>
+        total.get(b.category)! - total.get(a.category)! ||
+        a.category.localeCompare(b.category),
+    );
+  return { list, total };
+}
+
 // A stored transfer is a debit row with a destination, so the editor has to be
 // told it is a transfer again — nothing in `direction` says so.
 const draftOf = (r: Row): Draft => ({
@@ -122,6 +162,10 @@ export default function Transactions() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [invalid, setInvalid] = useState<Errors>({});
   const [pending, setPending] = useState<number | null>(null);
+  const [view, setView] = useState<View>("ledger");
+  /** The progress line while a run is in flight, and the button's disabled flag. */
+  const [busy, setBusy] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
 
   async function refresh() {
     const conn = await db;
@@ -179,6 +223,60 @@ export default function Transactions() {
     });
   }
 
+  /** Files every uncategorised row on screen, on demand and never on its own:
+   *  it spends tokens on a paid subscription, and a page that categorised
+   *  itself on mount would spend them on every visit.
+   *
+   *  Transfers are skipped — moving your own money between your own accounts
+   *  is not spending, so there is no category it belongs in — which also means
+   *  a transfer stays out of the Categories view for good, not until the next
+   *  run. Rows are written batch by batch, so a run that fails halfway keeps
+   *  what it had already filed; pressing the button again picks up the rest.
+   */
+  function categorise() {
+    const todo = rows.filter((r) => !r.category && !r.to_account_id);
+    setError(null);
+    setNote(null);
+    if (todo.length === 0) {
+      setNote("Everything is already categorised.");
+      return;
+    }
+
+    setBusy(`Categorising 0 of ${todo.length}…`);
+    (async () => {
+      try {
+        const settings = await getSettings();
+        if (!settings.model) {
+          throw new Error("Pick an AI model in Settings before categorising.");
+        }
+        const baseUrl = settings.base_url || CLOUD_URL;
+        const conn = await db;
+
+        let done = 0;
+        for (const batch of batches(todo)) {
+          const reply = await invoke<string>("ollama_json", {
+            baseUrl,
+            model: settings.model,
+            prompt: buildPrompt(batch),
+          });
+          for (const [id, category] of parseCategories(reply, batch)) {
+            await conn.execute(SET_CATEGORY, [category, id]);
+          }
+          done += batch.length;
+          setBusy(`Categorising ${done} of ${todo.length}…`);
+        }
+        setNote(`Categorised ${done} transaction${done === 1 ? "" : "s"}.`);
+        setView("categories");
+      } finally {
+        // In `finally` because a run that dies on batch three has still
+        // written batches one and two, and the list has to show them.
+        await refresh().catch(() => {});
+      }
+    })()
+      .catch((e) => setError(String(e)))
+      .finally(() => setBusy(null));
+  }
+
   const options = {
     accounts: accounts.map((a) => ({ id: a.id, label: a.bank })),
     cards: cards.map((c) => ({ id: c.id, label: cardLabel(c), hint: cardHint(c) })),
@@ -188,35 +286,77 @@ export default function Transactions() {
   // list order to be correct at all.
   const owed = outstandingAround(rows, cards);
 
+  // Same rows, same components, two orders — the view only decides what the
+  // list is sorted by and what the heading above a run of rows says.
+  const { list: filed, total } = byCategory(rows);
+  const list = view === "ledger" ? rows : filed;
+  const headingOf = (r: Row) => (view === "ledger" ? day(r.spent_at) : r.category);
+  const uncategorised = rows.filter((r) => !r.category && !r.to_account_id).length;
+
   return (
     <div className={page}>
-      <h1 className={h1}>Transactions</h1>
-      <p className={lede}>Review, correct, or remove every movement in your ledger.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className={h1}>Transactions</h1>
+          <p className={lede}>Review, correct, or remove every movement in your ledger.</p>
+        </div>
+        {/* On demand, never on a timer or on mount: it spends tokens. */}
+        <button className={button} onClick={categorise} disabled={busy !== null}>
+          {busy ?? `Categorise${uncategorised ? ` ${uncategorised}` : ""}`}
+        </button>
+      </div>
+
+      {/* Two readings of one list, so a segmented control rather than a second
+          nav item — nothing here is a different screen. */}
+      <div className="mt-4 flex w-fit gap-1 rounded-xl bg-hover p-1">
+        {(["ledger", "categories"] as View[]).map((v) => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            aria-pressed={view === v}
+            className={`h-8 cursor-pointer rounded-lg px-3 text-[12.5px] transition-colors ${
+              view === v ? "bg-surface font-medium text-ink shadow-card" : "text-muted hover:text-ink"
+            }`}
+          >
+            {v === "ledger" ? "Ledger" : "Categories"}
+          </button>
+        ))}
+      </div>
 
       {error && (
         <p role="alert" className={errorBox}>
           {error}
         </p>
       )}
+      {note && !error && <p className={noticeBox}>{note}</p>}
 
-      {rows.length === 0 ? (
+      {list.length === 0 ? (
         <div className={`mt-5 ${card} py-10 text-center`}>
-          <p className="text-[13.5px] font-medium">Nothing logged yet.</p>
+          <p className="text-[13.5px] font-medium">
+            {view === "categories" ? "Nothing categorised yet." : "Nothing logged yet."}
+          </p>
           <p className="mt-1 text-[12.5px] text-muted">
-            Your first entry shows up here, newest first, grouped by day.
+            {view === "categories"
+              ? "Press Categorise and the AI model files what is in your ledger."
+              : "Your first entry shows up here, newest first, grouped by day."}
           </p>
         </div>
       ) : (
         <ul className="mt-5 space-y-2">
-          {rows.map((r, i) => (
+          {list.map((r, i) => (
             <li key={r.id}>
-              {/* One heading per date, since the query is already sorted by it. */}
-              {(i === 0 ||
-                rows[i - 1].spent_at.slice(0, 10) !== r.spent_at.slice(0, 10)) && (
+              {/* One heading per run of rows — a date in the ledger, a category
+                  in the other view. Both orders are already sorted by it. */}
+              {(i === 0 || headingOf(list[i - 1]) !== headingOf(r)) && (
                 <p
                   className={`${i === 0 ? "pt-0" : "pt-4"} px-1 pb-1.5 text-[11px] font-medium tracking-[0.07em] text-muted uppercase`}
                 >
-                  <span className="rounded-full bg-hover px-2.5 py-1">{day(r.spent_at)}</span>
+                  <span className="rounded-full bg-hover px-2.5 py-1">{headingOf(r)}</span>
+                  {/* What the group cost, in the same prose the outstanding
+                      line uses — the reason to group at all. */}
+                  {view === "categories" && (
+                    <span className="ml-2 tabular-nums">{grouped(total.get(r.category)!)}</span>
+                  )}
                 </p>
               )}
 

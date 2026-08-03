@@ -49,7 +49,7 @@ export const MONTH_TOTALS = `
 
 export const TRANSACTIONS = `
   SELECT e.id, e.amount, e.currency, e.title, e.note, e.spent_at, e.direction,
-         e.account_id, e.card_id, e.to_account_id,
+         e.account_id, e.card_id, e.to_account_id, e.category,
          COALESCE(a.bank, c.bank || COALESCE(' ' || c.name, '')) AS source,
          d.bank AS destination
   FROM expense e
@@ -60,10 +60,11 @@ export const TRANSACTIONS = `
   LIMIT 200`;
 
 // `category` is still NOT NULL with no default from migration 1, and the form
-// no longer asks for one, so every new row gets ''. Categorising is a separate
-// feature; when it lands it backfills the empty ones.
+// does not ask for one, so every new row starts at '' — the uncategorised
+// bucket. Categorise on the Transactions page backfills it; see
+// docs/expense-categories.md.
 // ponytail: '' as "uncategorised"; a real default or a nullable column needs a
-// table rebuild, worth it only once something reads the column.
+// table rebuild, and nothing needs to tell '' apart from NULL.
 export const INSERT_TRANSACTION = `
   INSERT INTO expense (amount, currency, title, note, category, spent_at, direction, account_id, card_id, to_account_id)
   VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, $9)`;
@@ -79,3 +80,8 @@ export const UPDATE_TRANSACTION = `
   WHERE id = $10`;
 
 export const DELETE_TRANSACTION = `DELETE FROM expense WHERE id = $1`;
+
+// The only writer of `category`, and deliberately not part of
+// UPDATE_TRANSACTION: editing a row must not silently re-file it, and a
+// categorisation run must not touch the amounts a balance is derived from.
+export const SET_CATEGORY = `UPDATE expense SET category = $1 WHERE id = $2`;
