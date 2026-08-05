@@ -2,8 +2,8 @@
 id: persistence-sqlite
 type: decision
 status: active
-updated: 2026-07-31
-links: [stack, repo-layout, settings-schema, transaction-ledger, derived-balances]
+updated: 2026-08-05
+links: [stack, repo-layout, settings-schema, transaction-ledger, derived-balances, analysis-persistence, ollama-accounts, ollama-key-in-settings]
 ---
 
 # Persistence: SQLite via tauri-plugin-sql
@@ -90,9 +90,9 @@ CREATE TABLE expense (
 CREATE INDEX idx_expense_spent_at ON expense (spent_at);
 ```
 
-`settings` is a separate key/value table (`key TEXT PRIMARY KEY`, `value TEXT NOT NULL`) holding only `base_url` and `model`. The Ollama API key is **not** a settings row — it lives in the macOS Keychain; see [[ollama-flow]].
+`settings` is a separate key/value table (`key TEXT PRIMARY KEY`, `value TEXT NOT NULL`) holding scalar Ollama configuration: `base_url` and `model`, written by `setSetting()` in `apps/desktop/src/db.ts`.
 
-**Nothing else belongs in `settings`.** Despite the name, it is not where the Settings *screen* stores its data: bank accounts and credit cards are entity lists with their own `account` and `card` tables, added by migration 2. See [[settings-schema]]. A JSON array stuffed into a `value` column is the anti-pattern that node exists to prevent.
+**Entity lists do not belong in `settings`.** Bank accounts, cards, and named Ollama credentials use `account`, `card`, and `ollama_account`; see [[settings-schema]] and [[ollama-accounts]]. A JSON array stuffed into a `value` column cannot carry their constraints or selection semantics.
 
 ### Migration versions applied
 
@@ -102,6 +102,11 @@ CREATE INDEX idx_expense_spent_at ON expense (spent_at);
 | 2 | `create_account_and_card_tables` | `account`, `card` — see [[settings-schema]] |
 | 3 | `add_direction_and_source_to_expense` | `expense.direction`, `expense.account_id`, `expense.card_id` — see [[transaction-ledger]] |
 | 4 | `split_expense_description_into_title_and_note` | renames `expense.description` to `title`, adds `expense.note` — see [[transaction-ledger]] |
+| 5 | `add_transfer_destination_to_expense` | `expense.to_account_id` — one row per transfer, see [[self-transfer]] |
+| 6 | `add_statement_due_day_to_card` | `card.due_day`, nullable with a `1..31` `CHECK` — see [[card-due-day]] |
+| 7 | `create_analysis_table` | `analysis` — one stored AI analysis per Analytics window, see [[analysis-persistence]] |
+| 8 | `create_report_table` | `report` — one stored AI report per Report window, see [[report-ai]] |
+| 9 | `create_ollama_account_table` | `ollama_account`, active-key index, and migration of legacy `settings.api_key` — see [[ollama-accounts]] |
 
 ⚠ Migration 1 timestamps with `datetime('now')` (no `T`, no `Z`), which contradicts rule 4. It has shipped and must not be edited; migration 2 onward uses `strftime('%Y-%m-%dT%H:%M:%SZ','now')`. [[settings-schema]] documents the split.
 

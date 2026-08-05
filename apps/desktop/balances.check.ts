@@ -9,24 +9,30 @@ import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
 import {
   ACCOUNT_BALANCES,
+  ANALYTICS_FEED,
   CARD_OUTSTANDING,
+  LOAD_ANALYSIS,
+  LOAD_REPORT,
   MONTH_TOTALS,
   INSERT_TRANSACTION,
   UPDATE_TRANSACTION,
   DELETE_TRANSACTION,
+  SAVE_ANALYSIS,
+  SAVE_REPORT,
+  SET_CATEGORY,
 } from "./src/queries.ts";
 
 /** The migration bodies out of lib.rs, so a schema change here cannot drift. */
-function schema(): string {
+function migrations(): string[] {
   const rust = readFileSync(new URL("./src-tauri/src/lib.rs", import.meta.url), "utf8");
   const sql = [...rust.matchAll(/sql: "([\s\S]*?)",\n\s*kind:/g)].map((m) => m[1]);
-  assert.equal(sql.length, 6, "expected 6 migrations in lib.rs");
-  return sql.join("\n");
+  assert.equal(sql.length, 9, "expected 9 migrations in lib.rs");
+  return sql;
 }
 
 function seed() {
   const db = new DatabaseSync(":memory:");
-  db.exec(schema());
+  db.exec(migrations().join("\n"));
   db.exec("INSERT INTO account (bank, balance) VALUES ('HDFC', 100000)"); // ₹1000
   db.exec("INSERT INTO account (bank, balance) VALUES ('ICICI', 50000)"); // ₹500
   db.exec("INSERT INTO card (bank, name, last4) VALUES ('HDFC', 'Regalia', '0421')");
@@ -99,6 +105,112 @@ test("month totals filter on the stored spent_at prefix", () => {
     Object.fromEntries(rows.map((r) => [r.direction, r.total])),
     { credit: 5000, debit: 25000 },
   );
+});
+
+// The Analytics and Report feed. Everything below is business logic that lives
+// in SQL — a mapping done in TypeScript would be a second place for it to
+// disagree with itself. See docs/analytics-real-feed.md.
+const feed = (db: DatabaseSync, from: string, to: string) =>
+  db.prepare(ANALYTICS_FEED.replace("$1", "?").replace("$2", "?")).all(from, to);
+
+test("the feed spans both bounds and shapes a row as the charts read it", () => {
+  const db = seed();
+  book(db, 25000, "debit", "account", "2026-07-01T00:00:00Z"); // first day
+  book(db, 30000, "debit", "card", "2026-07-31T00:00:00Z"); // last day
+  book(db, 99999, "debit", "account", "2026-06-30T00:00:00Z"); // outside
+
+  const rows = feed(db, "2026-07-01", "2026-07-31");
+  assert.equal(rows.length, 2, "both boundary days are inside the window");
+  assert.deepEqual(
+    { ...rows[0] },
+    {
+      date: "2026-07-01",
+      amount: 25000,
+      direction: "debit",
+      title: "x",
+      category: "Uncategorised",
+      kind: "account",
+      source: "HDFC",
+    },
+  );
+  // The card row carries the card's name, and is the borrowed kind.
+  assert.equal(rows[1].kind, "card");
+  assert.equal(rows[1].source, "HDFC Regalia");
+});
+
+test("the feed leaves transfers out", () => {
+  const db = seed();
+  book(db, 25000, "debit", "account", "2026-07-15T00:00:00Z");
+  transfer(db, 500000, "2026-07-16T00:00:00Z");
+
+  const rows = feed(db, "2026-07-01", "2026-07-31");
+  assert.equal(rows.length, 1, "moving your own money is neither spending nor income");
+  assert.equal(rows[0].amount, 25000);
+});
+
+test("a categorised row keeps its own label", () => {
+  const db = seed();
+  book(db, 25000, "debit", "account", "2026-07-15T00:00:00Z");
+  db.prepare(SET_CATEGORY.replace("$1", "?").replace("$2", "?")).run("Groceries", 1);
+
+  assert.equal(feed(db, "2026-07-01", "2026-07-31")[0].category, "Groceries");
+});
+
+// One analysis per window: the button replaces, never accumulates.
+const saveAnalysis = (db: DatabaseSync, to: string, summary: string, fingerprint: string) =>
+  db
+    .prepare(SAVE_ANALYSIS.replace(/\$\d+/g, "?"))
+    .run("2026-07-01", to, "gpt-oss:120b", summary, '[{"title":"t","detail":"d"}]', fingerprint);
+
+test("saving an analysis twice for one window overwrites it", () => {
+  const db = seed();
+  saveAnalysis(db, "2026-07-31", "first", "3:100:200");
+  saveAnalysis(db, "2026-07-31", "second", "4:150:200");
+  saveAnalysis(db, "2026-06-30", "another window", "1:10:20");
+
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM analysis").get()!.n, 2);
+  const row = db
+    .prepare(LOAD_ANALYSIS.replace("$1", "?").replace("$2", "?"))
+    .get("2026-07-01", "2026-07-31")!;
+  assert.equal(row.summary, "second");
+  assert.equal(row.fingerprint, "4:150:200", "the fingerprint must move with the prose");
+  assert.match(String(row.created_at), /^\d{4}-\d{2}-\d{2}T/, "ISO-8601 UTC, per rule 4");
+  assert.deepEqual(JSON.parse(String(row.insights)), [{ title: "t", detail: "d" }]);
+});
+
+// Same discipline for the written report: one row per Report window, replaced
+// by the next press — docs/report-ai.md.
+const saveReport = (db: DatabaseSync, headline: string, fingerprint: string) =>
+  db
+    .prepare(SAVE_REPORT.replace(/\$\d+/g, "?"))
+    .run(
+      "2026-07-01",
+      "2026-07-31",
+      "gpt-oss:120b",
+      headline,
+      '[{"title":"f","figure":"₹1","why":"w","severity":"note"}]',
+      '[{"title":"h","how":"do it","saves":150000}]',
+      '[{"title":"r","body":"b"}]',
+      fingerprint,
+    );
+
+test("regenerating a report for one window replaces it", () => {
+  const db = seed();
+  saveReport(db, "first", "3:100:200");
+  saveReport(db, "second", "4:150:200");
+
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM report").get()!.n, 1);
+  const row = db
+    .prepare(LOAD_REPORT.replace("$1", "?").replace("$2", "?"))
+    .get("2026-07-01", "2026-07-31")!;
+  assert.equal(row.headline, "second");
+  assert.equal(row.fingerprint, "4:150:200", "the fingerprint must move with the prose");
+  assert.match(String(row.created_at), /^\d{4}-\d{2}-\d{2}T/, "ISO-8601 UTC");
+  // Three documents, read back whole. A habit's `saves` stays paise across the
+  // boundary — the badge divides, the column does not.
+  assert.deepEqual(JSON.parse(String(row.habits)), [{ title: "h", how: "do it", saves: 150000 }]);
+  assert.equal(JSON.parse(String(row.findings))[0].severity, "note");
+  assert.deepEqual(JSON.parse(String(row.reframes)), [{ title: "r", body: "b" }]);
 });
 
 test("direction is constrained and defaults to debit", () => {
@@ -201,4 +313,46 @@ test("a transfer credits the destination and debits the source, once each", () =
   transfer(db, 10000);
   transfer(db, 10000);
   assert.deepEqual(balances(db), { HDFC: 80000, ICICI: 70000 });
+});
+
+test("migration 9 preserves the existing Ollama key as the active account", () => {
+  const db = new DatabaseSync(":memory:");
+  const sql = migrations();
+  db.exec(sql.slice(0, 8).join("\n"));
+  db.exec("INSERT INTO settings (key, value) VALUES ('api_key', 'legacy-key')");
+  db.exec(sql[8]);
+
+  assert.deepEqual(
+    { ...db.prepare("SELECT name, api_key, active FROM ollama_account").get() },
+    { name: "Default", api_key: "legacy-key", active: 1 },
+  );
+  assert.equal(
+    db.prepare("SELECT value FROM settings WHERE key = 'api_key'").get(),
+    undefined,
+  );
+});
+
+test("Ollama accounts hold multiple keys but allow only one active key", () => {
+  const db = new DatabaseSync(":memory:");
+  db.exec(migrations().join("\n"));
+  db.exec(`
+    INSERT INTO ollama_account (name, api_key, active) VALUES ('Personal', 'key-one', 1);
+    INSERT INTO ollama_account (name, api_key) VALUES ('Work', 'key-two');
+  `);
+
+  assert.throws(
+    () =>
+      db.exec(
+        "INSERT INTO ollama_account (name, api_key, active) VALUES ('Other', 'key-three', 1)",
+      ),
+    /UNIQUE/,
+  );
+  db.exec(`
+    UPDATE ollama_account SET active = 0 WHERE active = 1;
+    UPDATE ollama_account SET active = 1 WHERE name = 'Work';
+  `);
+  assert.equal(
+    db.prepare("SELECT api_key FROM ollama_account WHERE active = 1").get()!.api_key,
+    "key-two",
+  );
 });

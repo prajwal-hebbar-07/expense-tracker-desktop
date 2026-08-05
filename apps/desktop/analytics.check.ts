@@ -1,12 +1,13 @@
 // Run: pnpm --filter desktop test
 //
-// The feed is mock data, but the window and bucket maths is real: an off-by-one
-// on a month boundary silently drops or double-counts a day's spending, and no
-// amount of looking at the chart would show it.
+// The feed is fixture data (see `feed.fixture.ts`), but the window and bucket
+// maths is real: an off-by-one on a month boundary silently drops or
+// double-counts a day's spending, and no amount of looking at the chart would
+// show it.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { FEED } from "./feed.fixture.ts";
 import {
-  FEED,
   buckets,
   daysBetween,
   previous,
@@ -17,6 +18,8 @@ import {
   windowFor,
 } from "./src/analyticsFeed.ts";
 
+// The checks pin their own reference day and pass it to every `windowFor` /
+// `previous` call, so they never depend on the real clock.
 const TODAY = "2026-08-01"; // a Saturday
 
 test("windows land on the right boundaries", () => {
@@ -93,9 +96,9 @@ test("credits never count as spending", () => {
   const w = windowFor("month", 1, TODAY);
   const rows = within(FEED, w);
   const t = totals(rows, w);
-  assert.ok(t.received > 0, "the mock feed pays a salary");
+  assert.ok(t.received > 0, "the fixture feed pays an income");
   assert.equal(
-    rank(rows, "category").find((r) => r.label === "Salary"),
+    rank(rows, "category").find((r) => r.label === "Income"),
     undefined,
   );
   assert.equal(t.net, t.received - t.spent);

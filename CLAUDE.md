@@ -3,6 +3,9 @@
 - Use `pnpm` for all Node package operations. Never `npm` or `yarn`.
   - `pnpm add` / `pnpm add -D`, `pnpm install`, `pnpm dlx`, `pnpm run <script>`
   - Scaffolding too: `pnpm create tauri-app`, not `npm create`.
+- Never open or drive a browser unless the user explicitly asks. This includes
+  implementation verification: build and run the actual desktop app instead,
+  or state plainly that the user must check the UI.
 
 - Every document in `docs/` is written for an AI coding agent to act on, not for prose reading. The user will ask questions by pointing at a document, so each one must answer them without the conversation that produced it.
 

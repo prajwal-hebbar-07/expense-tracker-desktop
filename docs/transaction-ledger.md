@@ -14,7 +14,7 @@ The table keeps the name `expense` even though it now holds credits too. Renamin
 
 Entry and history are **two separate tabs**, not two sections of one screen: `apps/desktop/src/AddTransaction.tsx` (the default — form plus the four stat tiles) and `apps/desktop/src/Transactions.tsx` (the list, grouped by day). The SQL for both is in `apps/desktop/src/queries.ts` so `apps/desktop/balances.check.ts` can run it against a real database.
 
-The form's text fields are **`title` (mandatory) and `note` (optional, the "why")**, added by migration 4. There is no category field: how a transaction gets categorised is undecided, so the form does not guess at it.
+The form's text fields are **`title` (mandatory) and `note` (optional, the "why")**, added by migration 4. There is still no category field: a category is assigned after the fact by the Categorise button, not typed in — see [[expense-categories]].
 
 Rows are **edited in place on the list and deleted behind the same two-step guard as Settings**. Both screens drive the same six fields through `apps/desktop/src/transactionForm.tsx`, which owns the `Draft` type, the `Fields` component and `toParams` — the single validator. A second copy of that validation is how an edit ends up accepting an amount the insert would have rejected.
 
@@ -55,7 +55,7 @@ ALTER TABLE expense ADD COLUMN note TEXT;
 
 `RENAME COLUMN` (SQLite ≥ 3.25, verified on 3.51.0 to preserve existing rows) rather than adding a `title` column and abandoning `description`, which would leave a `NOT NULL` column every future `INSERT` still has to fill with a dummy value.
 
-⚠ **`category` is still `NOT NULL` with no default and the form no longer collects one, so `INSERT_TRANSACTION` hardcodes `''`.** Migration 1 froze both the `NOT NULL` and the missing default, and SQLite cannot alter either without a table rebuild. Treat `''` as "uncategorised"; the categorisation feature backfills it. Do not read `category` expecting a value.
+⚠ **`category` is still `NOT NULL` with no default and the form does not collect one, so `INSERT_TRANSACTION` hardcodes `''`.** Migration 1 froze both the `NOT NULL` and the missing default, and SQLite cannot alter either without a table rebuild. `''` is the uncategorised bucket, and [[expense-categories]] backfills it on demand — so a row read straight after an insert still has no category.
 
 An omitted note is stored as `NULL`, never `''` — the form maps `note.trim() || null`, because `''` reads as "there is a note and it is empty".
 
@@ -70,7 +70,8 @@ One `<select>` with two `<optgroup>`s, values `a:<id>` / `c:<id>`. Two coupled s
 | `ACCOUNT_BALANCES` | `id, bank, currency, balance` — live, see [[derived-balances]] |
 | `CARD_OUTSTANDING` | `id, bank, name, last4, outstanding` — debits minus credits; negative means in credit |
 | `MONTH_TOTALS` | `direction, total` for `$1` = local `YYYY-MM` |
-| `TRANSACTIONS` | last 200, newest first, with `account_id`/`card_id` for the editor and a `source` label `COALESCE`d across the two |
+| `TRANSACTIONS` | last 200, newest first, with `account_id`/`card_id` for the editor, `category` for the grouped view, and a `source` label `COALESCE`d across the two |
+| `SET_CATEGORY` | `category` as `$1`, id as `$2`. The only writer of the column — [[expense-categories]] |
 | `INSERT_TRANSACTION` | 8 bound params — amount, currency, title, note, spent_at, direction, account_id, card_id. `category` is the literal `''` in the SQL, not a param |
 | `UPDATE_TRANSACTION` | the same 8, same order, plus the id as `$9` |
 | `DELETE_TRANSACTION` | id as `$1`; a hard delete |

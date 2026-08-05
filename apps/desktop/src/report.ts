@@ -1,12 +1,19 @@
 // Turns a window of transactions into a written report: what stands out, why it
 // costs something, and what to do differently.
 //
-// Deliberately RULES, not a model. Every sentence is derived from a figure in
-// the feed, so a claim on this page can always be traced to an arithmetic
-// operation on the rows — which is the difference between a report and a
-// horoscope. If a generated version ever replaces it, this file is the contract
-// that version has to fill: same `Report` shape, same "every claim carries its
-// number" rule.
+// Two writers produce that report, both from the same `Facts`:
+//
+//   buildFacts  — every figure the window supports, computed once.
+//   buildReport — rules over those facts. What the page shows until the user
+//                 presses Generate, and the shape the model has to fill.
+//   reportAi.ts — the same facts as a prompt, and the reply parsed back into
+//                 this `Report`. On the button only; see docs/report-ai.md.
+//
+// The rules are deliberately not a model: every sentence interpolates a figure
+// from the feed, so a claim can always be traced to an arithmetic operation on
+// the rows — which is the difference between a report and a horoscope. The
+// generated version is held to the same rule by its prompt and its parser: a
+// finding with no figure is dropped rather than rendered.
 // ponytail: threshold constants tuned by eye against the mock feed; move them
 // into user settings only if someone actually wants to change them.
 
@@ -15,15 +22,52 @@
 // imported in value position.
 import type { Txn, Window } from "./analyticsFeed.ts";
 import { daysBetween } from "./analyticsFeed.ts";
+import { CATEGORIES } from "./categorize.ts";
 import { formatAmount, formatAmountRound } from "./money.ts";
 
-/** Spending you cannot stop this month without changing where you live or what
- *  you eat. The split drives most of the report — a report that tells you to
- *  cut rent is not a report. */
-const ESSENTIAL = new Set(["Rent", "Groceries", "Utilities", "Health"]);
+/** Every category string in this file is one of the closed list the model
+ *  writes (docs/expense-categories.md). Typing them as `Category` is what
+ *  stops a rename over there from silently switching a finding off here —
+ *  which is exactly what the mock feed's own vocabulary ("Eating out",
+ *  "Utilities") did until the ledger replaced it. */
+type Category = (typeof CATEGORIES)[number];
 
-const SMALL = 500_00; // ₹500 — the "didn't think about it" threshold
-const BIG = 3_000_00; // ₹3,000 — the "should have slept on it" threshold
+const FOOD: Category = "Food & Dining";
+const SUBSCRIPTIONS: Category = "Subscriptions";
+const RENT: Category = "Rent";
+const GROCERIES: Category = "Groceries";
+
+/** Not a category: the label `ANALYTICS_FEED` gives a row nothing has filed
+ *  yet. It is excluded from every *finding*, because "your biggest
+ *  controllable cost is the spending you have not labelled" is not advice —
+ *  it is a description of the ledger's state, and rule 1 below turns it into
+ *  the one action that fixes it. It still counts in every total: the money
+ *  moved whether or not anyone named it. */
+const UNFILED = "Uncategorised";
+
+/** Spending you cannot stop this month without changing where you live, missing
+ *  a debt payment, or cutting basic needs. The split drives most of the report
+ *  — a report that tells you to cut rent or an EMI is not a report. Exported so
+ *  the AI fact sheet labels the same rows as protected. */
+export const ESSENTIAL: Record<string, true | undefined> = {
+  Rent: true,
+  "Loans & EMIs": true,
+  Groceries: true,
+  "Bills & Utilities": true,
+  Health: true,
+} satisfies Partial<Record<Category, true>>;
+
+// ponytail: legacy rows cannot be re-categorised in the current UI. Protect
+// only unmistakable loan wording here; remove this title check when category
+// editing can migrate those rows to Loans & EMIs.
+const LEGACY_EMI = /\bemi\b|\b(?:home|car|personal|education) loan\b|\bloan (?:payment|repayment)\b/i;
+
+export function isEssentialExpense(row: Pick<Txn, "category" | "title">): boolean {
+  return Boolean(ESSENTIAL[row.category] || LEGACY_EMI.test(row.title));
+}
+
+export const SMALL = 500_00; // ₹500 — the "didn't think about it" threshold
+export const BIG = 3_000_00; // ₹3,000 — the "should have slept on it" threshold
 
 export type Severity = "watch" | "note" | "good";
 
@@ -71,16 +115,90 @@ function byCategory(rows: Txn[]) {
   return [...acc].sort((a, b) => b[1] - a[1]);
 }
 
-export function buildReport(all: Txn[], win: Window, prevRows: Txn[]): Report {
+/** Every figure the report is allowed to state, computed once from the rows.
+ *
+ *  Two writers read it: the rules below, and the prompt in reportAi.ts. One
+ *  aggregation is what stops a figure the model was handed from disagreeing
+ *  with the same figure a rule would have stated about the same window. */
+export type Facts = {
+  win: Window;
+  /** Debits only. The report is about money leaving. */
+  rows: Txn[];
+  days: number;
+  /** Never below 0.25, so a one-day window cannot annualise into nonsense. */
+  months: number;
+  spent: number;
+  essentials: number;
+  discretionary: number;
+  /** Every category that spent something, largest first. */
+  cats: [string, number][];
+  /** Largest category that is neither essential nor the unfiled bucket. */
+  topControllable: [string, number] | undefined;
+  unfiled: number;
+  rent: number;
+  eatingOut: number;
+  /** How many separate meals the eating-out figure is made of. */
+  foodOrders: number;
+  groceries: number;
+  subs: number;
+  onCards: number;
+  /** Discretionary spends under `SMALL`, and at or over `BIG`. */
+  smalls: Txn[];
+  bigs: Txn[];
+  /** The comparison window's debits. */
+  before: number;
+  income: number;
+  /** Days the window has at least one spend on. */
+  spendDays: number;
+  target: number;
+};
+
+export function buildFacts(all: Txn[], win: Window, prevRows: Txn[]): Facts {
   const rows = all.filter((t) => t.direction === "debit");
   const spent = sum(rows);
   const days = daysBetween(win.from, win.to);
-  const months = Math.max(days / 30, 0.25);
-
-  const essentials = sum(rows.filter((t) => ESSENTIAL.has(t.category)));
+  const protectedRows = rows.filter(isEssentialExpense);
+  const reviewableRows = rows.filter((row) => !isEssentialExpense(row));
+  const essentials = sum(protectedRows);
   const discretionary = spent - essentials;
   const cats = byCategory(rows);
-  const topControllable = cats.find(([c]) => !ESSENTIAL.has(c));
+  const reviewableCats = byCategory(reviewableRows);
+  const food = rows.filter((t) => t.category === FOOD);
+
+  return {
+    win,
+    rows,
+    days,
+    months: Math.max(days / 30, 0.25),
+    spent,
+    essentials,
+    discretionary,
+    cats,
+    topControllable: reviewableCats.find(([c]) => c !== UNFILED),
+    unfiled: sum(rows.filter((t) => t.category === UNFILED)),
+    rent: sum(rows.filter((t) => t.category === RENT)),
+    eatingOut: sum(food),
+    foodOrders: food.length,
+    groceries: sum(rows.filter((t) => t.category === GROCERIES)),
+    subs: sum(rows.filter((t) => t.category === SUBSCRIPTIONS)),
+    onCards: sum(rows.filter((t) => t.kind === "card")),
+    smalls: reviewableRows.filter((t) => t.amount < SMALL),
+    bigs: reviewableRows.filter((t) => t.amount >= BIG),
+    before: sum(prevRows.filter((t) => t.direction === "debit")),
+    income: sum(all.filter((t) => t.direction === "credit")),
+    spendDays: new Set(rows.map((t) => t.date)).size,
+    // A 10% cut on the controllable half only — telling someone to spend less
+    // on rent is not a target, it is a move.
+    target: Math.round(essentials + discretionary * 0.9),
+  };
+}
+
+export function buildReport(all: Txn[], win: Window, prevRows: Txn[]): Report {
+  const {
+    rows, spent, days, months, essentials, discretionary, topControllable, unfiled,
+    rent, eatingOut, foodOrders, groceries, subs, onCards, smalls, bigs, before,
+    income, spendDays, target,
+  } = buildFacts(all, win, prevRows);
 
   const findings: Finding[] = [];
   const habits: Habit[] = [];
@@ -113,9 +231,23 @@ export function buildReport(all: Txn[], win: Window, prevRows: Txn[]): Report {
     });
   }
 
+  // 1b — the ledger's own gap. Stated before anything derived from categories,
+  // because a report built on a third of the rows should say so first.
+  if (pct(unfiled, spent) >= 20) {
+    findings.push({
+      title: "Most of this period is unfiled",
+      figure: `${formatAmount(unfiled)} · ${pct(unfiled, spent)}% has no category`,
+      why: "Every split below reads only the rows that have one, so this share is the margin of error on the whole report.",
+      severity: pct(unfiled, spent) >= 50 ? "watch" : "note",
+    });
+    habits.push({
+      title: "Categorise before you read this page",
+      how: "Transactions → Categorise files everything on screen in one press. The report re-reads the ledger, so the sections below sharpen as soon as it finishes.",
+      saves: 0,
+    });
+  }
+
   // 2 — eating out measured against the thing it replaces
-  const eatingOut = sum(rows.filter((t) => t.category === "Eating out"));
-  const groceries = sum(rows.filter((t) => t.category === "Groceries"));
   if (eatingOut > 0 && groceries > 0) {
     const ratio = eatingOut / groceries;
     if (ratio >= 1) {
@@ -125,8 +257,7 @@ export function buildReport(all: Txn[], win: Window, prevRows: Txn[]): Report {
         why: "A delivered meal runs roughly three times what the same food costs cooked, so this ratio is the single largest multiplier on your food budget.",
         severity: ratio >= 1.5 ? "watch" : "note",
       });
-      const orders = rows.filter((t) => t.category === "Eating out").length;
-      const perMeal = Math.round(eatingOut / Math.max(orders, 1));
+      const perMeal = Math.round(eatingOut / Math.max(foodOrders, 1));
       habits.push({
         title: "Cook two more dinners a week",
         how: `Your average order is ${formatAmountRound(perMeal)}. Two fewer a week, with ingredients costing about a third, is the fastest cut available to you.`,
@@ -143,7 +274,6 @@ export function buildReport(all: Txn[], win: Window, prevRows: Txn[]): Report {
   }
 
   // 3 — the drip that never feels like a decision
-  const smalls = rows.filter((t) => t.amount < SMALL && !ESSENTIAL.has(t.category));
   if (smalls.length >= 5) {
     const drip = sum(smalls);
     findings.push({
@@ -159,7 +289,6 @@ export function buildReport(all: Txn[], win: Window, prevRows: Txn[]): Report {
   }
 
   // 4 — subscriptions, priced the way they are actually paid
-  const subs = sum(rows.filter((t) => t.category === "Subscriptions"));
   if (subs > 0) {
     const perYear = Math.round((subs / months) * 12);
     findings.push({
@@ -176,7 +305,6 @@ export function buildReport(all: Txn[], win: Window, prevRows: Txn[]): Report {
   }
 
   // 5 — cards, where the bill arrives after the feeling
-  const onCards = sum(rows.filter((t) => t.kind === "card"));
   if (pct(onCards, spent) >= 30) {
     findings.push({
       title: "A third of your spending is on cards",
@@ -192,7 +320,6 @@ export function buildReport(all: Txn[], win: Window, prevRows: Txn[]): Report {
   }
 
   // 6 — the ones worth sleeping on
-  const bigs = rows.filter((t) => t.amount >= BIG && !ESSENTIAL.has(t.category));
   if (bigs.length) {
     habits.push({
       title: `Sleep on anything over ${formatAmountRound(BIG)}`,
@@ -202,7 +329,6 @@ export function buildReport(all: Txn[], win: Window, prevRows: Txn[]): Report {
   }
 
   // 7 — the trend, stated plainly
-  const before = sum(prevRows.filter((t) => t.direction === "debit"));
   if (before > 0) {
     const change = pct(spent - before, before);
     findings.push({
@@ -217,7 +343,6 @@ export function buildReport(all: Txn[], win: Window, prevRows: Txn[]): Report {
   }
 
   // A no-spend day is the cheapest habit there is.
-  const spendDays = new Set(rows.map((t) => t.date)).size;
   if (days - spendDays < days / 7) {
     habits.push({
       title: "Book one no-spend day a week",
@@ -233,7 +358,6 @@ export function buildReport(all: Txn[], win: Window, prevRows: Txn[]): Report {
     body: `Your controllable spending runs about ${formatAmountRound(monthlyDiscretionary)} a month — ${formatAmountRound(monthlyDiscretionary * 12)} a year. Nobody would agree to that as an annual subscription without reading what is in it.`,
   });
 
-  const income = sum(all.filter((t) => t.direction === "credit"));
   if (income > 0) {
     const daysOfIncome = (spent / (income / days)).toFixed(0);
     reframes.push({
@@ -245,7 +369,7 @@ export function buildReport(all: Txn[], win: Window, prevRows: Txn[]): Report {
   if (topControllable) {
     reframes.push({
       title: "Compare it to the thing you are not buying",
-      body: `${formatAmountRound(topControllable[1])} on ${topControllable[0].toLowerCase()} is ${(topControllable[1] / Math.max(sum(rows.filter((t) => t.category === "Rent")), 1)).toFixed(1)}× your rent for the same window. Neither number is wrong — but only one of them bought you somewhere to live.`,
+      body: `${formatAmountRound(topControllable[1])} on ${topControllable[0].toLowerCase()} is ${(topControllable[1] / Math.max(rent, 1)).toFixed(1)}× your rent for the same window. Neither number is wrong — but only one of them bought you somewhere to live.`,
     });
   }
 
@@ -253,7 +377,9 @@ export function buildReport(all: Txn[], win: Window, prevRows: Txn[]): Report {
 
   const headline = topControllable
     ? `${pct(discretionary, spent)}% of your spending was discretionary, and ${topControllable[0].toLowerCase()} led it.`
-    : `Almost everything you spent was essential — ${pct(essentials, spent)}% of the total.`;
+    : pct(unfiled, spent) >= 50
+      ? `${pct(unfiled, spent)}% of this period has no category yet, so there is little to read into it.`
+      : `Almost everything you spent was essential — ${pct(essentials, spent)}% of the total.`;
 
   return {
     window: win,
@@ -265,8 +391,6 @@ export function buildReport(all: Txn[], win: Window, prevRows: Txn[]): Report {
     findings,
     habits,
     reframes,
-    // A 10% cut on the controllable half only — telling someone to spend less
-    // on rent is not a target, it is a move.
-    target: Math.round(essentials + discretionary * 0.9),
+    target,
   };
 }

@@ -2,8 +2,8 @@
 id: stack
 type: decision
 status: active
-updated: 2026-07-31
-links: [repo-layout, persistence-sqlite, ollama-flow, turborepo]
+updated: 2026-08-05
+links: [repo-layout, persistence-sqlite, ollama-flow, turborepo, ollama-accounts, ollama-key-in-settings]
 ---
 
 # Build stack
@@ -15,7 +15,7 @@ Chosen 2026-07-31, before any application code existed, and **scaffolded the sam
 ## Rules for an agent working here
 
 1. **Never introduce a server process, port listener, or background daemon**, because the entire point of Tauri here was that the user refused a daily "start the server" step. A feature that seems to need a server needs a Rust command instead. This constrains the **shipped application**, not build tooling — Turborepo's build-time daemon is out of scope; see [[turborepo]].
-2. **Business logic and all disk/network access go in Rust** (`apps/desktop/src-tauri/src/lib.rs`), exposed to the frontend with `#[tauri::command]` and called via `invoke("command_name", { arg })`. The WebView is a rendering layer. This keeps secrets and file paths out of a context that can execute arbitrary loaded script.
+2. **Business logic and all disk/network access go in Rust** (`apps/desktop/src-tauri/src/lib.rs`), exposed to the frontend with `#[tauri::command]` and called via `invoke("command_name", { arg })`. The WebView is a rendering layer. One deliberate exception: TypeScript reads the selected Ollama key from SQLite and passes it into the command — [[ollama-accounts]].
 3. **Use `pnpm` for every Node operation**, never `npm` or `yarn` — the repo is a pnpm workspace and a stray `package-lock.json` corrupts resolution.
 4. **Style with Tailwind utility classes only.** Do not add a component library (MUI, Chakra, shadcn) or a CSS-in-JS runtime; they were deliberately excluded to keep the bundle small and the dependency count near zero.
 5. **Add a Rust crate before adding a JS dependency** when both could do the job, because Rust code ships compiled into the binary while JS ships into the WebView and inflates the frontend bundle.

@@ -24,7 +24,20 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-sql = { version = "2.4.0", features = ["sqlite"] }
 tauri-plugin-process = "2"
+# The Ollama HTTP call. See docs/ollama-flow.md for why it is not a webview fetch.
+#
+# 0.13 matches the copy tauri-plugin-updater already pulls in — asking for 0.12
+# compiles reqwest into the binary twice.
+#
+# `rustls-no-provider`, not `rustls`: the latter pins the aws-lc-rs provider,
+# which is a cmake + C build the ubuntu-22.04 release job would have to carry.
+# The provider is installed from `ring` in lib.rs instead — see the Once there.
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
+
+[dev-dependencies]
+tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread"] }
 
