@@ -2,13 +2,13 @@
 id: linux-release
 type: decision
 status: active
-updated: 2026-08-02
-links: [auto-update, stack]
+updated: 2026-08-05
+links: [auto-update, stack, windows-release]
 ---
 
 # Shipping to Linux
 
-The `release` workflow publishes Linux artifacts alongside the macOS ones, from a second job on `ubuntu-22.04`. Three files land on the release: a `.deb`, an `.AppImage`, and the `.AppImage`'s updater signature.
+The `release` workflow publishes Linux artifacts alongside the macOS ones, from a second job on `ubuntu-22.04`. Three files land on the release: a `.deb`, an `.AppImage`, and the `.AppImage`'s updater signature. A third job covers Windows — [[windows-release]].
 
 **Only the AppImage self-updates.** Tauri's Linux updater works by replacing the running AppImage file in place; a `.deb` install has no path back to the updater, so a user who installed the `.deb` upgrades by downloading the next one by hand. The `.deb` is kept anyway because it is what a Linux user reaches for first, and telling someone to `apt install` once a release is a smaller cost than not offering it.
 
@@ -16,7 +16,7 @@ The `release` workflow publishes Linux artifacts alongside the macOS ones, from 
 
 ## Rules for an agent working here
 
-1. **The `linux` job is `needs: release`, not a matrix entry, because both jobs upload `latest.json` to the same release.** Running second means `tauri-action` merges the `linux-x86_64` key into the manifest the macOS job already wrote; running in parallel is a race where one manifest silently overwrites the other and half the users stop seeing updates.
+1. **The `linux` job is `needs: release`, not a matrix entry, because every job uploads `latest.json` to the same release.** Running second means `tauri-action` merges the `linux-x86_64` key into the manifest the macOS job already wrote; running in parallel is a race where one manifest silently overwrites the other and half the users stop seeing updates. The `windows` job is third in the same chain for the same reason.
 2. **The `linux` job checks out the *tag*, not the branch.** The macOS job pushes the bump commit and tag; building from `main` afterwards could pick up a commit that shipped in no artifact.
 3. **Stay on `ubuntu-22.04`.** An AppImage dynamically links the glibc it was built against, so an image built on 24.04 refuses to start on anything older. Moving up narrows who can run it — a runner-image deprecation is the only reason to, and it lowers the floor for every existing user.
 4. **The webview dependency is `libwebkit2gtk-4.1-dev`, not `4.0`.** 4.0 is the Tauri v1 package; installing it produces a `pkg-config` failure deep in the `wry` build with no mention of the version.

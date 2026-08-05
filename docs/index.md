@@ -8,7 +8,7 @@ links: []
 
 # Map
 
-Thirty-nine nodes besides this one is well past the point where the graph needs a map. Start from the question, not the top.
+Forty-one nodes besides this one is well past the point where the graph needs a map. Start from the question, not the top.
 
 ## Where do I start?
 
@@ -33,7 +33,7 @@ Thirty-nine nodes besides this one is well past the point where the graph needs 
 | I am touching a chart or a tile | [[summary-tile-delta]], [[chart-outlier]], [[filter-row]] |
 | Why does this dialog / confirm not work? | [[webview-dialogs]] |
 | Money moving between own accounts | [[self-transfer]] |
-| Shipping a new version | [[auto-update]], [[linux-release]] |
+| Shipping a new version | [[auto-update]], [[linux-release]], [[windows-release]] |
 
 ## Superseded
 

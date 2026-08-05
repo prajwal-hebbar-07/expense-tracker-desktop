@@ -2,8 +2,8 @@
 id: auto-update
 type: decision
 status: active
-updated: 2026-08-02
-links: [stack, persistence-sqlite, derived-balances, linux-release]
+updated: 2026-08-05
+links: [stack, persistence-sqlite, derived-balances, linux-release, windows-release]
 ---
 
 # Shipping an update

@@ -126,9 +126,9 @@ jobs:
           uploadUpdaterJson: true
           args: --target aarch64-apple-darwin
 
-  # Sequential, not a matrix entry, because both jobs write latest.json to the
-  # same release: running second means tauri-action merges the linux platform
-  # key into the manifest the macOS job already uploaded, instead of racing it.
+  # Sequential, not a matrix entry, because every job writes latest.json to the
+  # same release: running one at a time means tauri-action merges this platform's
+  # key into the manifest the previous job uploaded, instead of racing it.
   linux:
     needs: release
     # Pinned to the oldest supported image on purpose: an AppImage links the
@@ -183,3 +183,48 @@ jobs:
           # rpm is dropped: it cannot self-update either, and deb already covers
           # the "install it properly" case.
           args: --bundles deb,appimage
+
+  # Third link in the same chain, and for the same reason: latest.json is one
+  # file on one release, so this job must not overlap with the two before it.
+  windows:
+    needs: [release, linux]
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: v${{ needs.release.outputs.version }}
+
+      # Nothing to install: WebView2 is preinstalled on the runner image and on
+      # every supported Windows, and the Tauri CLI fetches NSIS itself.
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+
+      - run: pnpm install --frozen-lockfile
+
+      # The checks already passed on the macOS job for this exact commit.
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: apps/desktop
+          tagName: v${{ needs.release.outputs.version }}
+          releaseName: LedgerFlow v${{ needs.release.outputs.version }}
+          releaseDraft: false
+          prerelease: false
+          uploadUpdaterJson: true
+          # nsis only. It produces the `-setup.exe`, which is both the download
+          # and the update payload; msi would add a second installer doing the
+          # same job and a second updater artifact for the same platform key.
+          args: --bundles nsis
