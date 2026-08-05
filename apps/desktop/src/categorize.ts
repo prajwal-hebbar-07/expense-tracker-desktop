@@ -22,6 +22,12 @@ export const CATEGORIES = [
   "Entertainment",
   "Travel",
   "Education",
+  // Added 2026-08-05, when the Report screen started reading the real ledger:
+  // its "renews whether you use it or not" finding needs a bucket that is
+  // about the *commitment*, not the content — Netflix is not an evening out.
+  // Adding a category is a data decision: rows already filed keep what they
+  // have until something re-categorises them, and nothing does today.
+  "Subscriptions",
   "Income",
   "Other",
 ] as const;

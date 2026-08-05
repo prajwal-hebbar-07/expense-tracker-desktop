@@ -60,6 +60,14 @@ export function buildInsightsPrompt(f: Facts): string {
         .join("; ")}.`,
     );
   }
+  // Without this the model reads "Uncategorised" as a merchant or a habit and
+  // writes advice about cutting it back. It is the ledger's own gap, and the
+  // only action it supports is filing the rows.
+  if (f.categories.some((s) => s.label === "Uncategorised")) {
+    lines.push(
+      "`Uncategorised` is not a kind of spending: it is the rows nobody has filed yet. Treat it as missing information, never as a habit to cut.",
+    );
+  }
 
   return [
     "You are a personal finance analyst. Below are the totals for one period of a user's spending, in Indian rupees.",

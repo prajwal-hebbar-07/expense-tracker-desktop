@@ -8,7 +8,7 @@ links: []
 
 # Map
 
-Twenty-five nodes is past the point where the graph needs one. Start from the question, not the top.
+Thirty-six nodes besides this one is well past the point where the graph needs a map. Start from the question, not the top.
 
 ## Where do I start?
 
@@ -27,6 +27,8 @@ Twenty-five nodes is past the point where the graph needs one. Start from the qu
 | How does the app reach an LLM, and where is the API key? | [[ollama-flow]] |
 | How does a transaction get a category? | [[expense-categories]] |
 | How does a period get an AI read? | [[analytics-insights]] |
+| Where do the numbers on Analytics and Report come from? | [[analytics-real-feed]] |
+| Does the AI analysis survive a reload, and how do I know it is still true? | [[analysis-persistence]] |
 | I am touching a chart or a tile | [[summary-tile-delta]], [[chart-outlier]], [[filter-row]] |
 | Why does this dialog / confirm not work? | [[webview-dialogs]] |
 | Money moving between own accounts | [[self-transfer]] |
@@ -39,6 +41,7 @@ Kept, not deleted — the reasoning is what stops a question being re-litigated.
 - [[native-controls]] → [[custom-select]]. Native `<select>` and `<input type="date">`, and the five things that forced them out on 2026-08-01.
 - [[ledger-row-debit-red]] → [[card-movement]] + [[debit-red]]. Debits in red and cards on a blue chip. Split verdict on 2026-08-02: the blue chip lost to violet, the red debits shipped.
 - [[icon-vector-source]] → [[brand-assets]]. The icon as hand-written SVG screenshotted by Chrome, replaced by raster masters on 2026-08-02. Keeps the three constraints the SVG encoded.
+- [[analytics-mock-feed]] → [[analytics-real-feed]]. The seeded generator behind `FEED` and `TODAY`, replaced by a ledger query on 2026-08-05. Keeps why a fake feed was the right call before categorisation shipped, and the four properties any fixture still has to have.
 
 ## Conventions
 

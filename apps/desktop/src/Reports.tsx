@@ -2,7 +2,7 @@ import { formatAmount, formatAmountRound } from "./money";
 import { card, errorBox, h1, h2, lede, pageWide } from "./ui";
 import { Alert, Check, Info, Lightbulb, Repeat, Target } from "./icons";
 import PeriodPicker, { usePeriod } from "./PeriodPicker";
-import { FEED, within } from "./analyticsFeed";
+import { within } from "./analyticsFeed";
 import { Severity, buildReport } from "./report";
 
 const TONE: Record<Severity, { ring: string; text: string; icon: typeof Alert }> = {
@@ -38,16 +38,16 @@ function SplitBar({ essentials, discretionary }: { essentials: number; discretio
 }
 
 export default function Reports() {
-  const { win, prev, invalid, controls } = usePeriod("month");
-  const report = buildReport(within(FEED, win), win, within(FEED, prev));
+  const { win, prev, invalid, controls, rows: feed, loading, feedError } = usePeriod("month");
+  const report = buildReport(within(feed, win), win, within(feed, prev));
   const saveable = report.habits.reduce((s, h) => s + h.saves, 0);
 
   return (
     <div className={pageWide}>
       <h1 className={h1}>Report</h1>
       <p className={lede}>
-        Sample data. Every line below is derived from a figure in the feed — no advice
-        that isn't backed by one of your own numbers.
+        Every line below is derived from a figure in your own ledger — no advice
+        that isn't backed by one of your numbers.
       </p>
 
       <PeriodPicker controls={controls} label={win.label} />
@@ -56,6 +56,22 @@ export default function Reports() {
         <p role="alert" className={errorBox}>
           The start date is after the end date.
         </p>
+      ) : feedError ? (
+        <p role="alert" className={errorBox}>
+          Could not read the ledger: {feedError}
+        </p>
+      ) : loading ? (
+        <p className="mt-6 text-[13.5px] text-muted">Reading the ledger…</p>
+      ) : report.spent === 0 ? (
+        // Every finding is a statement about money that moved. With none, the
+        // honest report is one sentence, not six empty sections.
+        <div className={`mt-6 ${card}`}>
+          <p className="text-[13.5px] font-medium">Nothing spent in {win.label}.</p>
+          <p className="mt-1 text-[12.5px] text-muted">
+            A report needs spending to read. Add transactions, or step back to a period
+            that has some.
+          </p>
+        </div>
       ) : (
         <>
           <section className={`mt-6 ${card}`}>

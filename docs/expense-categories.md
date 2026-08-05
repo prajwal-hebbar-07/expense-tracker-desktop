@@ -2,8 +2,8 @@
 id: expense-categories
 type: decision
 status: active
-updated: 2026-08-03
-links: [ollama-flow, transaction-ledger, analytics-page, persistence-sqlite]
+updated: 2026-08-05
+links: [ollama-flow, transaction-ledger, analytics-page, persistence-sqlite, analytics-real-feed]
 ---
 
 # Categorising expenses
@@ -36,14 +36,19 @@ The page has two views of the same list — **Ledger** (every row, newest first,
 
 ### Categories
 
-The closed list, in `categorize.ts`. Adding one is a data decision — old rows keep whatever they were filed under until they are re-categorised, and nothing re-categorises a non-empty row today.
+The closed list, in `categorize.ts`. It is the app's **only** category vocabulary: every screen, chart, report rule and `Set` of category names matches against these exact strings — see rule 5 of [[analytics-real-feed]].
 
 ```
 Food & Dining, Groceries, Transport, Shopping, Bills & Utilities,
-Rent, Health, Entertainment, Travel, Education, Income, Other
+Rent, Health, Entertainment, Travel, Education, Subscriptions,
+Income, Other
 ```
 
-`Income` covers credits. `Rent` is also the tag [[chart-outlier]] reads.
+`Income` covers credits. `Rent` is also the tag [[chart-outlier]] reads, and the whole of `FIXED` in `analyticsFeed.ts`.
+
+**Adding one is a data decision, not a code change.** Old rows keep whatever they were filed under until they are re-categorised, and nothing re-categorises a non-empty row today — the last anti-pattern below: it costs tokens to overwrite a user-visible value. So a new category applies to future runs only, and the list will carry a name no existing row has until the next press. `Subscriptions` was added on 2026-08-05 for exactly this reason — [[report-page]] already had a rule keyed on it, and the feed it was written against emitted it.
+
+`Uncategorised` is **not** in the list and must never be stored. It is a display label produced by `ANALYTICS_FEED` for a row still at `''` — see [[analytics-real-feed]].
 
 ### Command
 
@@ -82,4 +87,5 @@ One line per transaction, `id: title (note) [money out]`, then the closed list a
 ## Not done yet
 
 - **Editing a category by hand.** There is no picker on a row; the only way to change one is a model run, and a run skips rows that already have a category. ⚠ Verify before promising a user can correct a mistake.
-- **"Where it went" in [[analytics-page]]** — the node says it needs categorisation to exist first. It exists now; `FEED` still does not select `category`.
+
+**Closed on 2026-08-05:** "Where it went" in [[analytics-page]]. The page reads real ledger rows and groups them by this list; a row still at `''` surfaces as one `Uncategorised` bar rather than being dropped — [[analytics-real-feed]].

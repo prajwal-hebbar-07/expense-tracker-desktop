@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight } from "./icons";
 import DatePicker from "./DatePicker";
-import { Period, TODAY, Window, daysBetween, previous, windowFor } from "./analyticsFeed";
+import { shiftMonths, todayIso } from "./day";
+import { loadFeed } from "./db";
+import { Period, Txn, Window, daysBetween, previous, windowFor } from "./analyticsFeed";
 
 const PERIODS: { id: Period; label: string }[] = [
   { id: "week", label: "Week" },
@@ -11,7 +13,7 @@ const PERIODS: { id: Period; label: string }[] = [
 ];
 
 export type Resolved = {
-  /** The window to read, never extending past the newest day in the feed. */
+  /** The window to read, never extending past today. */
   win: Window;
   /** What to compare it against — same elapsed length when `win` is in progress. */
   prev: Window;
@@ -19,15 +21,25 @@ export type Resolved = {
 };
 
 /**
- * Period state plus the window maths, shared by Analytics and Reports so the
- * two screens can never disagree about what "this month" means.
+ * Period state, the window maths, and the ledger rows for both windows —
+ * shared by Analytics and Reports so the two screens can never disagree about
+ * what "this month" means or read different rows for it.
+ *
+ * The rows are the real ledger (docs/analytics-real-feed.md). One query covers
+ * the period *and* its comparison, because `prev` abuts `win` by construction:
+ * asking for `prev.from … win.to` is one round trip instead of two, and the
+ * two halves can never come from different reads of a table the user is
+ * editing on another screen.
  */
 export function usePeriod(initial: Period = "month") {
   const [period, setPeriod] = useState<Period>(initial);
   /** Periods back from today; reset on a period change, because "3 weeks ago"
    *  and "3 years ago" are not the same place. */
   const [offset, setOffset] = useState(0);
-  const [range, setRange] = useState({ from: "2026-05-01", to: "2026-07-31" });
+  const today = todayIso();
+  /** Three months back, the shortest span where a custom range beats picking
+   *  "Month" — and it ends today rather than on a date baked into the source. */
+  const [range, setRange] = useState({ from: shiftMonths(today, -3), to: today });
 
   const full: Window =
     period === "range"
@@ -37,8 +49,8 @@ export function usePeriod(initial: Period = "month") {
   // Never average or compare across days that have not happened yet. A year in
   // progress is 212 days of spending, not 365, and holding it against a whole
   // previous year reports a saving the user did not make.
-  const inProgress = full.to > TODAY;
-  const win: Window = inProgress ? { ...full, to: TODAY } : full;
+  const inProgress = full.to > today;
+  const win: Window = inProgress ? { ...full, to: today } : full;
   const prev = inProgress
     ? previous("range", win, offset) // same elapsed length, ending before it
     : previous(period, full, offset);
@@ -49,8 +61,36 @@ export function usePeriod(initial: Period = "month") {
     invalid: period === "range" && range.from > range.to,
   };
 
+  const [feed, setFeed] = useState<{ rows: Txn[]; loading: boolean; error: string | null }>({
+    rows: [],
+    loading: true,
+    error: null,
+  });
+
+  // `span` is exactly the two values the query is built from, so it is the
+  // dependency: re-reading on every render of a stepper click that landed on
+  // the same dates would be a query per keystroke in the range fields.
+  const span = `${prev.from}|${win.to}`;
+  useEffect(() => {
+    if (resolved.invalid) return;
+    // A slow read that lands after the user has stepped on must not overwrite
+    // the newer one; the flag is cleared by cleanup before the next run starts.
+    let live = true;
+    setFeed((f) => ({ ...f, loading: true, error: null }));
+    loadFeed(prev.from, win.to).then(
+      (rows) => live && setFeed({ rows, loading: false, error: null }),
+      (e) => live && setFeed({ rows: [], loading: false, error: String(e) }),
+    );
+    return () => {
+      live = false;
+    };
+  }, [span, resolved.invalid]);
+
   return {
     ...resolved,
+    rows: feed.rows,
+    loading: feed.loading,
+    feedError: feed.error,
     period,
     controls: { period, setPeriod, offset, setOffset, range, setRange },
   };

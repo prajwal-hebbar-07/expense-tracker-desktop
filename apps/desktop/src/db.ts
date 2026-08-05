@@ -1,4 +1,7 @@
 import Database from "@tauri-apps/plugin-sql";
+import { ANALYTICS_FEED, LOAD_ANALYSIS, SAVE_ANALYSIS } from "./queries";
+import type { Txn } from "./analyticsFeed";
+import type { Insight } from "./insights";
 
 // One connection for the whole app, opened once at import. Loading the same URL
 // again returns the existing handle, but two live connections writing at once
@@ -31,4 +34,55 @@ export async function setSetting(key: string, value: string) {
     "INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = $2",
     [key, value],
   );
+}
+
+/** One window of the ledger, shaped as the feed the charts read. Both the
+ *  period and its comparison come out of a single call — `usePeriod` asks for
+ *  `prev.from … win.to`, which spans both — see docs/analytics-real-feed.md. */
+export const loadFeed = async (from: string, to: string) =>
+  (await (await db).select<Txn[]>(ANALYTICS_FEED, [from, to]));
+
+/** What the model wrote about one window, and what the figures looked like at
+ *  the time. `insights` is stored as JSON: it is a document read back whole,
+ *  never queried by field — see docs/analysis-persistence.md. */
+export type StoredAnalysis = {
+  model: string;
+  summary: string;
+  insights: Insight[];
+  fingerprint: string;
+  created_at: string;
+};
+
+export async function loadAnalysis(from: string, to: string): Promise<StoredAnalysis | null> {
+  const rows = await (await db).select<(Omit<StoredAnalysis, "insights"> & { insights: string })[]>(
+    LOAD_ANALYSIS,
+    [from, to],
+  );
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  // A row this app wrote, so the parse should not fail — but a corrupted or
+  // hand-edited value must not take the whole page down with it.
+  let insights: Insight[] = [];
+  try {
+    const parsed: unknown = JSON.parse(row.insights);
+    if (Array.isArray(parsed)) insights = parsed as Insight[];
+  } catch {
+    insights = [];
+  }
+  return { ...row, insights };
+}
+
+export async function saveAnalysis(
+  from: string,
+  to: string,
+  a: Omit<StoredAnalysis, "created_at">,
+) {
+  await (await db).execute(SAVE_ANALYSIS, [
+    from,
+    to,
+    a.model,
+    a.summary,
+    JSON.stringify(a.insights),
+    a.fingerprint,
+  ]);
 }

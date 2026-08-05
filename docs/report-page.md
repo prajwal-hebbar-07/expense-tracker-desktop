@@ -2,13 +2,13 @@
 id: report-page
 type: decision
 status: active
-updated: 2026-08-01
-links: [analytics-page, design-tokens]
+updated: 2026-08-05
+links: [analytics-page, analytics-real-feed, expense-categories, design-tokens]
 ---
 
 # The Report screen
 
-A fifth tab (`apps/desktop/src/Reports.tsx`) that reads the same feed as [[analytics-page]] and writes about it: what stood out, why it costs something, what habit would change it, and the same figures seen from an angle that changes the decision. Analytics answers *how much*; Report answers *so what*.
+A fifth tab (`apps/desktop/src/Reports.tsx`) that reads the same feed as [[analytics-page]] — the real ledger since 2026-08-05, [[analytics-real-feed]] — and writes about it: what stood out, why it costs something, what habit would change it, and the same figures seen from an angle that changes the decision. Analytics answers *how much*; Report answers *so what*.
 
 The generator (`apps/desktop/src/report.ts`) is **rules, not a model**. Every sentence interpolates a figure computed from the rows, so any claim on the page traces back to an arithmetic operation on the user's own data. That is the difference between a report and a horoscope, and it is the property to preserve if a generated version ever replaces it: same `Report` shape, same "every claim carries its number" rule.
 
@@ -18,11 +18,12 @@ The generator (`apps/desktop/src/report.ts`) is **rules, not a model**. Every se
 
 1. **Never emit a claim without the number it came from.** A `Finding` has both `figure` and `why`; a finding with no figure is an opinion, and this app has no standing to have those.
 2. **Guard every denominator.** The page is template strings over division, and one zero denominator ships "NaN× your rent" to someone looking at their own money. `buildReport` returns early on an empty window and `pct()` returns `0` for a zero total; `report.check.ts` asserts no output ever matches `/NaN|Infinity|undefined/`.
-3. **Only ever suggest cutting the controllable half.** Essentials are `ESSENTIAL` in `report.ts` (Rent, Groceries, Utilities, Health). A target below essentials would require the user to move house, which is not a habit.
+3. **Only ever suggest cutting the controllable half.** Essentials are `ESSENTIAL` in `report.ts` (Rent, Groceries, Bills & Utilities, Health) — names from the closed list in [[expense-categories]], typed as `Category` so a rename there breaks the build rather than silently emptying the set. A target below essentials would require the user to move house, which is not a habit.
 4. **Estimated savings are labelled `~` and must total less than the controllable spend.** Promising a saving larger than what was spent is a lie the page is capable of telling by accident; the check asserts against it.
 5. **State a consequence, do not moralise.** "Card spending separates the purchase from the payment by up to 45 days" is a mechanism. "You should be more careful" is a lecture, and it is what makes people close the tab.
 6. **A rule that finds nothing must stay silent.** Every push into `findings`/`habits`/`reframes` sits behind a threshold; a report that always says the same eight things is wallpaper.
 7. **Keep the window maths in `usePeriod`** (`apps/desktop/src/PeriodPicker.tsx`), shared with Analytics, so the two screens can never disagree about what "this month" means.
+8. **Never let `Uncategorised` become the advice.** It is the label the query gives a row nobody has filed ([[analytics-real-feed]]), so it is missing information, not a spending habit. It counts in every total — the money moved — but `topControllable` skips it, and above 20% of spend the page says so directly and offers the one action that fixes it (Transactions → Categorise). "Uncategorised is your biggest controllable cost" is the sentence this rule exists to prevent; `report.check.ts` asserts against it.
 
 ## Contract
 

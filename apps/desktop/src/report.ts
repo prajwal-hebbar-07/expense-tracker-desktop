@@ -15,12 +15,36 @@
 // imported in value position.
 import type { Txn, Window } from "./analyticsFeed.ts";
 import { daysBetween } from "./analyticsFeed.ts";
+import { CATEGORIES } from "./categorize.ts";
 import { formatAmount, formatAmountRound } from "./money.ts";
+
+/** Every category string in this file is one of the closed list the model
+ *  writes (docs/expense-categories.md). Typing them as `Category` is what
+ *  stops a rename over there from silently switching a finding off here —
+ *  which is exactly what the mock feed's own vocabulary ("Eating out",
+ *  "Utilities") did until the ledger replaced it. */
+type Category = (typeof CATEGORIES)[number];
+
+const FOOD: Category = "Food & Dining";
+const SUBSCRIPTIONS: Category = "Subscriptions";
+
+/** Not a category: the label `ANALYTICS_FEED` gives a row nothing has filed
+ *  yet. It is excluded from every *finding*, because "your biggest
+ *  controllable cost is the spending you have not labelled" is not advice —
+ *  it is a description of the ledger's state, and rule 1 below turns it into
+ *  the one action that fixes it. It still counts in every total: the money
+ *  moved whether or not anyone named it. */
+const UNFILED = "Uncategorised";
 
 /** Spending you cannot stop this month without changing where you live or what
  *  you eat. The split drives most of the report — a report that tells you to
  *  cut rent is not a report. */
-const ESSENTIAL = new Set(["Rent", "Groceries", "Utilities", "Health"]);
+const ESSENTIAL: Record<string, true | undefined> = {
+  Rent: true,
+  Groceries: true,
+  "Bills & Utilities": true,
+  Health: true,
+} satisfies Partial<Record<Category, true>>;
 
 const SMALL = 500_00; // ₹500 — the "didn't think about it" threshold
 const BIG = 3_000_00; // ₹3,000 — the "should have slept on it" threshold
@@ -77,10 +101,10 @@ export function buildReport(all: Txn[], win: Window, prevRows: Txn[]): Report {
   const days = daysBetween(win.from, win.to);
   const months = Math.max(days / 30, 0.25);
 
-  const essentials = sum(rows.filter((t) => ESSENTIAL.has(t.category)));
+  const essentials = sum(rows.filter((t) => ESSENTIAL[t.category]));
   const discretionary = spent - essentials;
   const cats = byCategory(rows);
-  const topControllable = cats.find(([c]) => !ESSENTIAL.has(c));
+  const topControllable = cats.find(([c]) => !ESSENTIAL[c] && c !== UNFILED);
 
   const findings: Finding[] = [];
   const habits: Habit[] = [];
@@ -113,8 +137,25 @@ export function buildReport(all: Txn[], win: Window, prevRows: Txn[]): Report {
     });
   }
 
+  // 1b — the ledger's own gap. Stated before anything derived from categories,
+  // because a report built on a third of the rows should say so first.
+  const unfiled = sum(rows.filter((t) => t.category === UNFILED));
+  if (pct(unfiled, spent) >= 20) {
+    findings.push({
+      title: "Most of this period is unfiled",
+      figure: `${formatAmount(unfiled)} · ${pct(unfiled, spent)}% has no category`,
+      why: "Every split below reads only the rows that have one, so this share is the margin of error on the whole report.",
+      severity: pct(unfiled, spent) >= 50 ? "watch" : "note",
+    });
+    habits.push({
+      title: "Categorise before you read this page",
+      how: "Transactions → Categorise files everything on screen in one press. The report re-reads the ledger, so the sections below sharpen as soon as it finishes.",
+      saves: 0,
+    });
+  }
+
   // 2 — eating out measured against the thing it replaces
-  const eatingOut = sum(rows.filter((t) => t.category === "Eating out"));
+  const eatingOut = sum(rows.filter((t) => t.category === FOOD));
   const groceries = sum(rows.filter((t) => t.category === "Groceries"));
   if (eatingOut > 0 && groceries > 0) {
     const ratio = eatingOut / groceries;
@@ -125,7 +166,7 @@ export function buildReport(all: Txn[], win: Window, prevRows: Txn[]): Report {
         why: "A delivered meal runs roughly three times what the same food costs cooked, so this ratio is the single largest multiplier on your food budget.",
         severity: ratio >= 1.5 ? "watch" : "note",
       });
-      const orders = rows.filter((t) => t.category === "Eating out").length;
+      const orders = rows.filter((t) => t.category === FOOD).length;
       const perMeal = Math.round(eatingOut / Math.max(orders, 1));
       habits.push({
         title: "Cook two more dinners a week",
@@ -143,7 +184,7 @@ export function buildReport(all: Txn[], win: Window, prevRows: Txn[]): Report {
   }
 
   // 3 — the drip that never feels like a decision
-  const smalls = rows.filter((t) => t.amount < SMALL && !ESSENTIAL.has(t.category));
+  const smalls = rows.filter((t) => t.amount < SMALL && !ESSENTIAL[t.category]);
   if (smalls.length >= 5) {
     const drip = sum(smalls);
     findings.push({
@@ -159,7 +200,7 @@ export function buildReport(all: Txn[], win: Window, prevRows: Txn[]): Report {
   }
 
   // 4 — subscriptions, priced the way they are actually paid
-  const subs = sum(rows.filter((t) => t.category === "Subscriptions"));
+  const subs = sum(rows.filter((t) => t.category === SUBSCRIPTIONS));
   if (subs > 0) {
     const perYear = Math.round((subs / months) * 12);
     findings.push({
@@ -192,7 +233,7 @@ export function buildReport(all: Txn[], win: Window, prevRows: Txn[]): Report {
   }
 
   // 6 — the ones worth sleeping on
-  const bigs = rows.filter((t) => t.amount >= BIG && !ESSENTIAL.has(t.category));
+  const bigs = rows.filter((t) => t.amount >= BIG && !ESSENTIAL[t.category]);
   if (bigs.length) {
     habits.push({
       title: `Sleep on anything over ${formatAmountRound(BIG)}`,
@@ -253,7 +294,9 @@ export function buildReport(all: Txn[], win: Window, prevRows: Txn[]): Report {
 
   const headline = topControllable
     ? `${pct(discretionary, spent)}% of your spending was discretionary, and ${topControllable[0].toLowerCase()} led it.`
-    : `Almost everything you spent was essential — ${pct(essentials, spent)}% of the total.`;
+    : pct(unfiled, spent) >= 50
+      ? `${pct(unfiled, spent)}% of this period has no category yet, so there is little to read into it.`
+      : `Almost everything you spent was essential — ${pct(essentials, spent)}% of the total.`;
 
   return {
     window: win,

@@ -59,6 +59,49 @@ export const TRANSACTIONS = `
   ORDER BY e.spent_at DESC, e.id DESC
   LIMIT 200`;
 
+/** The Analytics and Report feed: one window of the ledger, shaped as `Txn`.
+ *
+ *  `$1`/`$2` are local `YYYY-MM-DD` bounds and `spent_at` is stored as
+ *  `YYYY-MM-DDT00:00:00Z`, so the comparison is on `substr(...,1,10)` rather
+ *  than on the raw column — a plain `BETWEEN` would drop the last day, whose
+ *  rows all sort after `<to>` once the `T00:00:00Z` suffix is compared.
+ *
+ *  Transfers are excluded for the same reason MONTH_TOTALS excludes them:
+ *  moving your own money between your own accounts is neither spending nor
+ *  income, and counting it inflates both sides of every chart.
+ *
+ *  `category` is '' until a categorisation run files a row, and '' is not a
+ *  label anyone can read on a chart, so it surfaces as 'Uncategorised' here.
+ *  The empty string stays the stored value — see docs/expense-categories.md. */
+export const ANALYTICS_FEED = `
+  SELECT substr(e.spent_at, 1, 10) AS date,
+         e.amount, e.direction, e.title,
+         CASE WHEN e.category = '' THEN 'Uncategorised' ELSE e.category END AS category,
+         CASE WHEN e.card_id IS NOT NULL THEN 'card' ELSE 'account' END AS kind,
+         COALESCE(a.bank, c.bank || COALESCE(' ' || c.name, ''), 'Unassigned') AS source
+  FROM expense e
+  LEFT JOIN account a ON a.id = e.account_id
+  LEFT JOIN card c ON c.id = e.card_id
+  WHERE e.to_account_id IS NULL
+    AND substr(e.spent_at, 1, 10) BETWEEN $1 AND $2
+  ORDER BY date`;
+
+/** One analysis per window: pressing the button again replaces the row rather
+ *  than growing a history nobody reads. `insights` is a JSON array and
+ *  `fingerprint` is what the figures looked like when it was written — see
+ *  docs/analysis-persistence.md. */
+export const SAVE_ANALYSIS = `
+  INSERT INTO analysis (window_from, window_to, model, summary, insights, fingerprint)
+  VALUES ($1, $2, $3, $4, $5, $6)
+  ON CONFLICT(window_from, window_to) DO UPDATE SET
+    model = excluded.model, summary = excluded.summary,
+    insights = excluded.insights, fingerprint = excluded.fingerprint,
+    created_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')`;
+
+export const LOAD_ANALYSIS = `
+  SELECT model, summary, insights, fingerprint, created_at
+  FROM analysis WHERE window_from = $1 AND window_to = $2`;
+
 // `category` is still NOT NULL with no default from migration 1, and the form
 // does not ask for one, so every new row starts at '' — the uncategorised
 // bucket. Categorise on the Transactions page backfills it; see

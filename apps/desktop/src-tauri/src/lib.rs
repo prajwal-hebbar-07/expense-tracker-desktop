@@ -113,6 +113,35 @@ fn migrations() -> Vec<Migration> {
         ",
             kind: MigrationKind::Up,
         },
+        // One AI analysis per Analytics window. The primary key is the window
+        // itself, so pressing the button again replaces the row instead of
+        // growing a history nobody reads.
+        //
+        // `insights` is a JSON array of {title, detail}. It is a document, not
+        // a relation: nothing queries it by field, and a child table would buy
+        // ordering and a join for prose that is only ever read back whole.
+        //
+        // `fingerprint` is what the window's figures looked like when the model
+        // wrote about them. A stored analysis whose fingerprint no longer
+        // matches is shown as stale rather than as current — see
+        // docs/analysis-persistence.md.
+        Migration {
+            version: 7,
+            description: "create_analysis_table",
+            sql: "
+            CREATE TABLE analysis (
+              window_from TEXT NOT NULL,
+              window_to   TEXT NOT NULL,
+              model       TEXT NOT NULL,
+              summary     TEXT NOT NULL,
+              insights    TEXT NOT NULL,
+              fingerprint TEXT NOT NULL,
+              created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+              PRIMARY KEY (window_from, window_to)
+            );
+        ",
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

@@ -5,13 +5,15 @@
 // produces a report rather than "NaN% of Infinity".
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { FEED, FIXTURE_TODAY } from "./feed.fixture.ts";
 import type { Txn, Window } from "./src/analyticsFeed.ts";
-import { FEED, within, windowFor } from "./src/analyticsFeed.ts";
+import { within, windowFor } from "./src/analyticsFeed.ts";
 import { buildReport } from "./src/report.ts";
 
-const TODAY = "2026-07-31";
-const july = windowFor("month", 0, TODAY);
-const june = windowFor("month", 1, TODAY);
+// The newest day the fixture emits — the report is read against a full month,
+// not whatever partial month the real clock happens to be in.
+const july = windowFor("month", 0, FIXTURE_TODAY);
+const june = windowFor("month", 1, FIXTURE_TODAY);
 const report = buildReport(within(FEED, july), july, within(FEED, june));
 
 const text = (r = report) =>
@@ -71,4 +73,47 @@ test("findings carry a severity the UI knows how to render", () => {
     assert.ok(["watch", "note", "good"].includes(f.severity), f.severity);
     assert.ok(f.why.length > 20, "a finding without a reason is just a statistic");
   }
+});
+
+// The ledger hands the report an `Uncategorised` bucket for rows nobody has
+// filed yet (docs/analytics-real-feed.md). It is real money and must count in
+// the totals, but "your biggest controllable cost is the spending you have not
+// labelled" is a description of the ledger, not advice about spending.
+const unfiled = (n: number, amount: number): Txn[] =>
+  Array.from({ length: n }, (_, i) => ({
+    date: "2026-07-10",
+    amount,
+    direction: "debit" as const,
+    category: "Uncategorised",
+    source: "HDFC",
+    kind: "account" as const,
+    title: `row ${i}`,
+  }));
+
+test("unfiled rows count in the totals but never become the advice", () => {
+  const rows: Txn[] = [
+    ...unfiled(6, 10_000_00),
+    { date: "2026-07-02", amount: 4_000_00, direction: "debit", category: "Shopping", source: "HDFC", kind: "account", title: "Amazon" },
+    { date: "2026-07-03", amount: 20_000_00, direction: "debit", category: "Rent", source: "HDFC", kind: "account", title: "Flat rent" },
+  ];
+  const r = buildReport(rows, july, []);
+
+  assert.equal(r.spent, 84_000_00, "unfiled money is still money");
+  assert.equal(r.essentials, 20_000_00, "only Rent is essential here");
+  assert.match(text(r), /Most of this period is unfiled/);
+  assert.match(text(r), /Categorise/, "the one action that fixes it is offered");
+  assert.match(
+    text(r),
+    /shopping led it/,
+    "the biggest *controllable* cost skips the unfiled bucket and names a real category",
+  );
+  assert.doesNotMatch(
+    text(r),
+    /uncategorised is your biggest|uncategorised is the largest/i,
+    "the ledger's own gap must never be dressed up as a spending habit",
+  );
+});
+
+test("a fully filed window says nothing about unfiled rows", () => {
+  assert.doesNotMatch(text(), /unfiled/i, "the fixture feed files every row");
 });

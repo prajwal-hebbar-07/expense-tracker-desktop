@@ -3,18 +3,18 @@ id: analytics-page
 type: decision
 status: active
 updated: 2026-08-05
-links: [summary-tile-delta, filter-row, chart-outlier, design-tokens, derived-balances, transaction-ledger, analytics-insights]
+links: [summary-tile-delta, filter-row, chart-outlier, design-tokens, derived-balances, transaction-ledger, analytics-insights, analytics-real-feed, analytics-mock-feed]
 ---
 
 # The Analytics screen
 
-A fourth tab (`apps/desktop/src/Analytics.tsx`) that answers "where did the money go" over four windows: **week, month, year, and a custom range**. It reads `FEED` from `apps/desktop/src/analyticsFeed.ts` — **mock data today**, generated once at import from a fixed seed. The aggregation functions in that module take a `Txn[]` and know nothing about its origin, so swapping in the real ledger is a change to one export, not to the page.
+A fourth tab (`apps/desktop/src/Analytics.tsx`) that answers "where did the money go" over four windows: **week, month, year, and a custom range**. It reads **the user's own ledger**: `usePeriod` loads the rows and the page slices them with `within(rows, win)` — see [[analytics-real-feed]] for the query, the row mapping and the loading, empty and error states. The aggregation functions in `apps/desktop/src/analyticsFeed.ts` take a `Txn[]` and know nothing about its origin, which is why replacing the seeded mock feed it read until 2026-08-05 ([[analytics-mock-feed]]) was a change to one import rather than to this page.
 
 Charts are **CSS boxes, not SVG and not a charting library**: a bar is a `div` with a percentage height. Recharts or Chart.js would be the largest dependency in the app, for shapes that are four rules of CSS ([[stack]] rule 5 forbids a JS dependency for what a few lines can do).
 
 ## Rules for an agent working here
 
-1. **Never let a chart average or compare across days that have not happened.** A window whose `to` is past `TODAY` is clamped, and its comparison window becomes the same *elapsed* length rather than the previous whole calendar period. Without this a year in progress divides by 365 and reports a saving nobody made.
+1. **Never let a chart average or compare across days that have not happened.** A window whose `to` is past today (`todayIso()` in `apps/desktop/src/day.ts`) is clamped, and its comparison window becomes the same *elapsed* length rather than the previous whole calendar period. Without this a year in progress divides by 365 and reports a saving nobody made. This fires every day now that "today" is the real clock rather than the last day of a fixed feed.
 2. **Colour a delta by whether it is favourable, never by its sign.** Each tile declares a `goal` (`lower` for Spent and Per day, `higher` for Received and Net) and `tone()` in `apps/desktop/src/delta.ts` derives good/bad from it. `−9%` is good news on Spent and bad news on Received; painting both red is how a dashboard teaches people to ignore it. A filled 9px mark carries the direction so the verdict is never colour alone, and moves under `NOISE_PCT` (5%) render muted as `flat · 2%` rather than as news. The tile itself, its marks and the no-prior-period case are [[summary-tile-delta]].
 3. **State a percentage only when the base is positive.** `change()` returns `null` for a zero base (Infinity) and for a negative one (the sign flips, so a Net improving from −₹1,000 to +₹500 would report "−150%", a fall for an outcome that got better).
 4. **Two series means a legend.** "Accounts vs cards" ships one; the single-series charts deliberately do not, because their card title names the series.
@@ -32,27 +32,27 @@ Charts are **CSS boxes, not SVG and not a charting library**: a bar is a `div` w
 | Export | Purpose |
 |---|---|
 | `Txn` | `{ date, amount, direction, category, source, kind, title }`; `amount` is paise, always positive |
-| `FEED` | the mock consolidated feed, `2025-01-01` … `2026-07-31` |
-| `TODAY` | `"2026-07-31"` — the newest day in the feed; every window is relative to this, not the clock |
-| `windowFor(period, offset, today?)` | resolves `week` \| `month` \| `year` to `{ from, to, label }`; weeks start **Monday** |
-| `previous(period, w, offset, today?)` | the comparison window; `range` means "same length, ending the day before" |
+| `windowFor(period, offset, today = todayIso())` | resolves `week` \| `month` \| `year` to `{ from, to, label }`; weeks start **Monday** |
+| `previous(period, w, offset, today = todayIso())` | the comparison window; `range` means "same length, ending the day before" |
 | `within` / `totals` / `rank` / `buckets` / `biggest` | aggregation over a `Txn[]` |
 
 Bucket widths in `buckets()`: **≤ 31 days → one bar per day; ≤ 186 days → one per week; longer → one per calendar month.** A bar is never one pixel wide.
 
 `--series-b` is `#d97706` in both themes (`apps/desktop/src/App.css`, see [[design-tokens]]).
 
-## Swapping in real data
+## Where the rows come from
 
-Replace `FEED` with a query and keep everything else. The ledger has no `category` column ([[transaction-ledger]] — the form deliberately does not collect one), so "Where it went" needs categorisation to exist first; `rank(rows, "source")` works against real data today.
+`usePeriod` (`apps/desktop/src/PeriodPicker.tsx`) resolves the window *and* loads the ledger rows for `prev.from` … `win.to`, so this page and [[report-page]] can never disagree about either. The query, the row mapping, the category vocabulary and the loading/empty/error states are [[analytics-real-feed]]. This page never queries the database itself.
+
+Done as of 2026-08-05. The section that used to stand here said the swap was blocked on categorisation — it shipped ([[expense-categories]]), and the reasoning that belonged to the mock is kept in [[analytics-mock-feed]].
 
 ## Failure modes
 
 | Symptom | Cause | Action |
 |---|---|---|
 | A green "you spent 40% more" | `goal` on that tile is wrong, or `tone()` was inverted | Rule 2; `delta.check.ts` pins all four sign/goal combinations |
-| Per-day figure looks far too low | Window not clamped to `TODAY`; dividing by a whole period | Rule 1 |
+| Per-day figure looks far too low | Window not clamped to today; dividing by a whole period | Rule 1 |
 | "−46% vs prev" on the current year | Comparing a partial period against a whole one | Rule 1 |
-| The page reshuffles its numbers on every render | The generator's seed was removed, or `FEED` moved inside the component | Keep it module-level and seeded |
+| The page reshuffles its numbers on every render | The feed is being loaded inside the component instead of by `usePeriod`, so every render refetches | [[analytics-real-feed]] rule 2 |
 | One bar dwarfs the rest | Real — rent is a third of a month; the gridlines exist so the small bars stay measurable | Do not rescale the data |
 | Two series look identical to a colourblind reader | A hue pair that was never run through the validator | Rule 10 |

@@ -2,8 +2,8 @@
 id: persistence-sqlite
 type: decision
 status: active
-updated: 2026-07-31
-links: [stack, repo-layout, settings-schema, transaction-ledger, derived-balances]
+updated: 2026-08-05
+links: [stack, repo-layout, settings-schema, transaction-ledger, derived-balances, analysis-persistence]
 ---
 
 # Persistence: SQLite via tauri-plugin-sql
@@ -102,6 +102,9 @@ CREATE INDEX idx_expense_spent_at ON expense (spent_at);
 | 2 | `create_account_and_card_tables` | `account`, `card` — see [[settings-schema]] |
 | 3 | `add_direction_and_source_to_expense` | `expense.direction`, `expense.account_id`, `expense.card_id` — see [[transaction-ledger]] |
 | 4 | `split_expense_description_into_title_and_note` | renames `expense.description` to `title`, adds `expense.note` — see [[transaction-ledger]] |
+| 5 | `add_transfer_destination_to_expense` | `expense.to_account_id` — one row per transfer, see [[self-transfer]] |
+| 6 | `add_statement_due_day_to_card` | `card.due_day`, nullable with a `1..31` `CHECK` — see [[card-due-day]] |
+| 7 | `create_analysis_table` | `analysis` — one stored AI analysis per Analytics window, see [[analysis-persistence]] |
 
 ⚠ Migration 1 timestamps with `datetime('now')` (no `T`, no `Z`), which contradicts rule 4. It has shipped and must not be edited; migration 2 onward uses `strftime('%Y-%m-%dT%H:%M:%SZ','now')`. [[settings-schema]] documents the split.
 

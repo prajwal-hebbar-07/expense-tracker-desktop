@@ -1,7 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { CLOUD_URL, getSettings } from "./db";
-import { at } from "./day";
+import { CLOUD_URL, getSettings, loadAnalysis, saveAnalysis } from "./db";
+import { at, formatDay } from "./day";
 import { formatAmount, formatAmountRound } from "./money";
 import { button, card, errorBox, h1, h2, lede, pageWide } from "./ui";
 import Stat from "./Stat";
@@ -11,7 +11,6 @@ import { ArrowRight, Calendar, TrendUp, Wallet } from "./icons";
 import { Report, buildInsightsPrompt, parseInsights } from "./insights";
 import {
   Bucket,
-  FEED,
   Slice,
   biggest,
   buckets,
@@ -243,14 +242,14 @@ function Split({ account, cardTotal }: { account: number; cardTotal: number }) {
 }
 
 export default function Analytics() {
-  const { win, prev, invalid, controls } = usePeriod("month");
+  const { win, prev, invalid, controls, rows: feed, loading, feedError } = usePeriod("month");
   /** Off by default: the fixed charge is stated above the chart either way, and
    *  putting it back is the escape hatch, not the starting point. */
   const [showFixed, setShowFixed] = useState(false);
 
-  const rows = within(FEED, win);
+  const rows = within(feed, win);
   const now = totals(rows, win);
-  const before = totals(within(FEED, prev), prev);
+  const before = totals(within(feed, prev), prev);
 
   const byCategory = rank(rows, "category");
   const bySource = rank(rows, "source", 4);
@@ -270,20 +269,55 @@ export default function Analytics() {
   // tile has 177px for a figure and a comparison both.
   const vs = prev.label.replace(` ${win.from.slice(0, 4)}`, "");
 
-  /** The analysis, stamped with the window it was generated for — a stamp
-   *  rather than a `useEffect` that clears it, because both jobs are the same
-   *  comparison: an analysis of July sitting above August's charts is a
-   *  confident lie, and so is one from a run that lands after the user has
-   *  stepped away from the period it read. */
+  /** What the model wrote about this window. Held with the window it belongs
+   *  to — an analysis of July sitting above August's charts is a confident
+   *  lie, and so is one from a run that lands after the user has stepped away
+   *  from the period it read. The same comparison settles both.
+   *
+   *  It survives a reload because it is a row in `analysis` keyed by the
+   *  window (docs/analysis-persistence.md); `fingerprint` is what the figures
+   *  looked like when it was written, so a stored one whose window has since
+   *  gained transactions is shown as stale rather than as current. */
   const [ai, setAi] = useState<{
     window: string;
     model?: string;
     report?: Report;
+    fingerprint?: string;
+    writtenAt?: string;
     error?: string;
   } | null>(null);
   const [analysing, setAnalysing] = useState(false);
   const winKey = `${win.from}|${win.to}`;
   const shown = ai?.window === winKey ? ai : null;
+
+  /** What the window's figures looked like, cheaply enough to compare on every
+   *  render. Count and both totals: a row edited from ₹400 to ₹4,000 moves the
+   *  sums without moving the count, and a delete plus an add moves the count
+   *  back but not the sums. */
+  const fingerprint = `${rows.length}:${now.spent}:${now.received}`;
+  const stale = shown?.report != null && shown.fingerprint !== fingerprint;
+
+  // Reading a stored analysis costs nothing, so unlike generating one it may
+  // happen on mount and on every period change — rule 1 is about tokens.
+  useEffect(() => {
+    let live = true;
+    setAi(null);
+    loadAnalysis(win.from, win.to)
+      .then((row) => {
+        if (!live || !row) return;
+        setAi({
+          window: `${win.from}|${win.to}`,
+          model: row.model,
+          report: { summary: row.summary, insights: row.insights },
+          fingerprint: row.fingerprint,
+          writtenAt: row.created_at,
+        });
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [win.from, win.to]);
 
   /** Sends this window's figures — the same aggregates the charts below are
    *  drawn from, never the transactions — to the configured model.
@@ -317,7 +351,20 @@ export default function Analytics() {
           biggest: biggest(rows),
         }),
       });
-      setAi({ window: winKey, model: settings.model, report: parseInsights(reply) });
+      const report = parseInsights(reply);
+      await saveAnalysis(win.from, win.to, {
+        model: settings.model,
+        summary: report.summary,
+        insights: report.insights,
+        fingerprint,
+      });
+      setAi({
+        window: winKey,
+        model: settings.model,
+        report,
+        fingerprint,
+        writtenAt: new Date().toISOString(),
+      });
     })()
       .catch((e) => setAi({ window: winKey, error: String(e) }))
       .finally(() => setAnalysing(false));
@@ -329,11 +376,16 @@ export default function Analytics() {
         <div>
           <h1 className={h1}>Analytics</h1>
           <p className={lede}>
-            Sample data — this page reads a consolidated feed, not the ledger.
+            Where your money went, from your own ledger. Transfers between your own
+            accounts are left out.
           </p>
         </div>
         {/* On demand, never on mount or on a period change: it spends tokens. */}
-        <button className={button} onClick={explain} disabled={analysing || invalid}>
+        <button
+          className={button}
+          onClick={explain}
+          disabled={analysing || invalid || loading || rows.length === 0}
+        >
           {analysing ? "Analysing…" : "Explain with AI"}
         </button>
       </div>
@@ -348,6 +400,22 @@ export default function Analytics() {
         <p role="alert" className={errorBox}>
           The start date is after the end date.
         </p>
+      ) : feedError ? (
+        <p role="alert" className={errorBox}>
+          Could not read the ledger: {feedError}
+        </p>
+      ) : loading ? (
+        <p className="mt-6 text-[13.5px] text-muted">Reading the ledger…</p>
+      ) : rows.length === 0 ? (
+        // Zeroes in four tiles and an empty chart is a page that looks broken;
+        // an empty ledger is not the same thing as a quiet month.
+        <div className={`mt-6 ${card}`}>
+          <p className="text-[13.5px] font-medium">Nothing recorded in {win.label}.</p>
+          <p className="mt-1 text-[12.5px] text-muted">
+            Add transactions on the Transactions page, or step back to a period that has
+            some.
+          </p>
+        </div>
       ) : (
         <>
           {/* Stacked, 2×2, then four across. `lg` is where the rail appears and
@@ -384,8 +452,8 @@ export default function Analytics() {
             />
           </div>
 
-          {/* Absent until the button is pressed, and gone again the moment the
-              period moves — see the stamp on `ai`. */}
+          {/* Present when this window has an analysis — freshly generated, or
+              read back from the `analysis` table. Never generated on its own. */}
           {(analysing || shown) && (
             <section className={`mt-5 ${card}`}>
               <div className="flex items-baseline justify-between gap-3">
@@ -405,15 +473,31 @@ export default function Analytics() {
                 </p>
               )}
 
+              {/* The figures moved after the model read them, so the prose is
+                  about a window that no longer looks like this. Said out loud,
+                  because the alternative is a paragraph quietly contradicting
+                  the chart beside it. */}
+              {stale && (
+                <p className="mt-3 rounded-md border border-line bg-violet-weak px-3 py-2 text-[12.5px]">
+                  This window has changed since the analysis was written. Press{" "}
+                  <span className="font-medium">Explain with AI</span> again for a current
+                  one.
+                </p>
+              )}
+
               {shown?.report && (
                 <>
                   {shown.report.summary && (
-                    <p className="mt-3 text-[13.5px] leading-relaxed">{shown.report.summary}</p>
+                    <p className={`mt-3 text-[13.5px] leading-relaxed ${stale ? "text-muted" : ""}`}>
+                      {shown.report.summary}
+                    </p>
                   )}
                   <ul className="mt-1 divide-y divide-line">
                     {shown.report.insights.map((i, n) => (
                       <li key={n} className="py-2.5">
-                        <p className="text-[13.5px] font-medium">{i.title}</p>
+                        <p className={`text-[13.5px] font-medium ${stale ? "text-muted" : ""}`}>
+                          {i.title}
+                        </p>
                         {i.detail && (
                           <p className="mt-0.5 text-[12.5px] leading-relaxed text-muted">
                             {i.detail}
@@ -423,8 +507,9 @@ export default function Analytics() {
                     ))}
                   </ul>
                   <p className="mt-3 text-[11.5px] text-muted">
-                    Written by a language model from the figures on this page. Check anything
-                    surprising against the charts below.
+                    Written by a language model from the figures on this page
+                    {shown.writtenAt && ` on ${formatDay(shown.writtenAt.slice(0, 10))}`}. Check
+                    anything surprising against the charts below.
                   </p>
                 </>
               )}

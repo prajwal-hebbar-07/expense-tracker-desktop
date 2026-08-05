@@ -9,18 +9,22 @@ import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
 import {
   ACCOUNT_BALANCES,
+  ANALYTICS_FEED,
   CARD_OUTSTANDING,
+  LOAD_ANALYSIS,
   MONTH_TOTALS,
   INSERT_TRANSACTION,
   UPDATE_TRANSACTION,
   DELETE_TRANSACTION,
+  SAVE_ANALYSIS,
+  SET_CATEGORY,
 } from "./src/queries.ts";
 
 /** The migration bodies out of lib.rs, so a schema change here cannot drift. */
 function schema(): string {
   const rust = readFileSync(new URL("./src-tauri/src/lib.rs", import.meta.url), "utf8");
   const sql = [...rust.matchAll(/sql: "([\s\S]*?)",\n\s*kind:/g)].map((m) => m[1]);
-  assert.equal(sql.length, 6, "expected 6 migrations in lib.rs");
+  assert.equal(sql.length, 7, "expected 7 migrations in lib.rs");
   return sql.join("\n");
 }
 
@@ -99,6 +103,77 @@ test("month totals filter on the stored spent_at prefix", () => {
     Object.fromEntries(rows.map((r) => [r.direction, r.total])),
     { credit: 5000, debit: 25000 },
   );
+});
+
+// The Analytics and Report feed. Everything below is business logic that lives
+// in SQL — a mapping done in TypeScript would be a second place for it to
+// disagree with itself. See docs/analytics-real-feed.md.
+const feed = (db: DatabaseSync, from: string, to: string) =>
+  db.prepare(ANALYTICS_FEED.replace("$1", "?").replace("$2", "?")).all(from, to);
+
+test("the feed spans both bounds and shapes a row as the charts read it", () => {
+  const db = seed();
+  book(db, 25000, "debit", "account", "2026-07-01T00:00:00Z"); // first day
+  book(db, 30000, "debit", "card", "2026-07-31T00:00:00Z"); // last day
+  book(db, 99999, "debit", "account", "2026-06-30T00:00:00Z"); // outside
+
+  const rows = feed(db, "2026-07-01", "2026-07-31");
+  assert.equal(rows.length, 2, "both boundary days are inside the window");
+  assert.deepEqual(
+    { ...rows[0] },
+    {
+      date: "2026-07-01",
+      amount: 25000,
+      direction: "debit",
+      title: "x",
+      category: "Uncategorised",
+      kind: "account",
+      source: "HDFC",
+    },
+  );
+  // The card row carries the card's name, and is the borrowed kind.
+  assert.equal(rows[1].kind, "card");
+  assert.equal(rows[1].source, "HDFC Regalia");
+});
+
+test("the feed leaves transfers out", () => {
+  const db = seed();
+  book(db, 25000, "debit", "account", "2026-07-15T00:00:00Z");
+  transfer(db, 500000, "2026-07-16T00:00:00Z");
+
+  const rows = feed(db, "2026-07-01", "2026-07-31");
+  assert.equal(rows.length, 1, "moving your own money is neither spending nor income");
+  assert.equal(rows[0].amount, 25000);
+});
+
+test("a categorised row keeps its own label", () => {
+  const db = seed();
+  book(db, 25000, "debit", "account", "2026-07-15T00:00:00Z");
+  db.prepare(SET_CATEGORY.replace("$1", "?").replace("$2", "?")).run("Groceries", 1);
+
+  assert.equal(feed(db, "2026-07-01", "2026-07-31")[0].category, "Groceries");
+});
+
+// One analysis per window: the button replaces, never accumulates.
+const saveAnalysis = (db: DatabaseSync, to: string, summary: string, fingerprint: string) =>
+  db
+    .prepare(SAVE_ANALYSIS.replace(/\$\d+/g, "?"))
+    .run("2026-07-01", to, "gpt-oss:120b", summary, '[{"title":"t","detail":"d"}]', fingerprint);
+
+test("saving an analysis twice for one window overwrites it", () => {
+  const db = seed();
+  saveAnalysis(db, "2026-07-31", "first", "3:100:200");
+  saveAnalysis(db, "2026-07-31", "second", "4:150:200");
+  saveAnalysis(db, "2026-06-30", "another window", "1:10:20");
+
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM analysis").get()!.n, 2);
+  const row = db
+    .prepare(LOAD_ANALYSIS.replace("$1", "?").replace("$2", "?"))
+    .get("2026-07-01", "2026-07-31")!;
+  assert.equal(row.summary, "second");
+  assert.equal(row.fingerprint, "4:150:200", "the fingerprint must move with the prose");
+  assert.match(String(row.created_at), /^\d{4}-\d{2}-\d{2}T/, "ISO-8601 UTC, per rule 4");
+  assert.deepEqual(JSON.parse(String(row.insights)), [{ title: "t", detail: "d" }]);
 });
 
 test("direction is constrained and defaults to debit", () => {
