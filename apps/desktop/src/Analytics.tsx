@@ -230,11 +230,17 @@ function Split({ account, cardTotal }: { account: number; cardTotal: number }) {
           <span className="size-2.5 shrink-0 rounded-full bg-accent" />
           <span className="flex-1">Bank accounts</span>
           <span className="tabular-nums">{formatAmount(account)}</span>
+          <span className="w-9 text-right text-xs text-muted tabular-nums">
+            {Math.round((account / total) * 100)}%
+          </span>
         </li>
         <li className="flex items-center gap-2">
           <span className="size-2.5 shrink-0 rounded-full bg-series-b" />
           <span className="flex-1">Credit cards</span>
           <span className="tabular-nums">{formatAmount(cardTotal)}</span>
+          <span className="w-9 text-right text-xs text-muted tabular-nums">
+            {Math.round((cardTotal / total) * 100)}%
+          </span>
         </li>
       </ul>
     </div>
@@ -377,8 +383,7 @@ export default function Analytics() {
         <div>
           <h1 className={h1}>Analytics</h1>
           <p className={lede}>
-            Where your money went, from your own ledger. Transfers between your own
-            accounts are left out.
+            See where your money went. Transfers between your own accounts are excluded.
           </p>
         </div>
         {/* On demand, never on mount or on a period change: it spends tokens. */}
@@ -456,17 +461,18 @@ export default function Analytics() {
           {/* Present when this window has an analysis — freshly generated, or
               read back from the `analysis` table. Never generated on its own. */}
           {(analysing || shown) && (
-            <section className={`mt-5 ${card}`}>
-              <div className="flex items-baseline justify-between gap-3">
-                <h2 className={h2}>AI analysis</h2>
-                {shown?.model && (
-                  <p className="shrink-0 font-mono text-[11px] text-muted">{shown.model}</p>
+            <section className={`mt-5 overflow-hidden ${card}`}>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className={h2}>AI analysis</h2>
+                  <p className="mt-0.5 text-[12px] text-muted">A quick read of the figures below</p>
+                </div>
+                {analysing && (
+                  <span className="rounded-full bg-violet-weak px-2.5 py-1 text-[11px] font-medium text-violet">
+                    Analysing…
+                  </span>
                 )}
               </div>
-
-              {analysing && (
-                <p className="mt-3 text-[13.5px] text-muted">Reading {win.label}…</p>
-              )}
 
               {shown?.error && (
                 <p role="alert" className={errorBox}>
@@ -474,119 +480,123 @@ export default function Analytics() {
                 </p>
               )}
 
-              {/* The figures moved after the model read them, so the prose is
-                  about a window that no longer looks like this. Said out loud,
-                  because the alternative is a paragraph quietly contradicting
-                  the chart beside it. */}
               {stale && (
-                <p className="mt-3 rounded-md border border-line bg-violet-weak px-3 py-2 text-[12.5px]">
-                  This window has changed since the analysis was written. Press{" "}
-                  <span className="font-medium">Explain with AI</span> again for a current
-                  one.
+                <p className="mt-3 rounded-xl border border-line bg-violet-weak px-3.5 py-2.5 text-[12.5px]">
+                  This window changed after the analysis was written. Run it again for a
+                  current read.
                 </p>
               )}
 
               {shown?.report && (
                 <>
                   {shown.report.summary && (
-                    <p className={`mt-3 text-[13.5px] leading-relaxed ${stale ? "text-muted" : ""}`}>
+                    <p
+                      className={`mt-4 rounded-xl border border-accent/20 bg-accent-weak px-4 py-3 text-[14px] leading-relaxed font-medium ${
+                        stale ? "text-muted" : ""
+                      }`}
+                    >
                       {shown.report.summary}
                     </p>
                   )}
-                  <ul className="mt-1 divide-y divide-line">
+                  <ol className="mt-3 grid gap-2.5 sm:grid-cols-2">
                     {shown.report.insights.map((i, n) => (
-                      <li key={n} className="py-2.5">
-                        <p className={`text-[13.5px] font-medium ${stale ? "text-muted" : ""}`}>
-                          {i.title}
-                        </p>
-                        {i.detail && (
-                          <p className="mt-0.5 text-[12.5px] leading-relaxed text-muted">
-                            {i.detail}
-                          </p>
-                        )}
+                      <li key={n} className="rounded-xl border border-line bg-field p-3.5">
+                        <div className="flex items-start gap-3">
+                          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-violet-weak text-[11px] font-semibold text-violet tabular-nums">
+                            {n + 1}
+                          </span>
+                          <div className="min-w-0">
+                            <p className={`text-[13.5px] font-medium ${stale ? "text-muted" : ""}`}>
+                              {i.title}
+                            </p>
+                            {i.detail && (
+                              <p className="mt-1 text-[12.5px] leading-relaxed text-muted">
+                                {i.detail}
+                              </p>
+                            )}
+                          </div>
+                        </div>
                       </li>
                     ))}
-                  </ul>
-                  <p className="mt-3 text-[11.5px] text-muted">
-                    Written by a language model from the figures on this page
-                    {shown.writtenAt && ` on ${formatDay(shown.writtenAt.slice(0, 10))}`}. Check
-                    anything surprising against the charts below.
+                  </ol>
+                  <p className="mt-3 border-t border-line pt-3 text-[11.5px] text-muted">
+                    AI · {shown.model ?? "language model"}
+                    {shown.writtenAt && ` · ${formatDay(shown.writtenAt.slice(0, 10))}`} ·
+                    Verify anything surprising with the charts.
                   </p>
                 </>
               )}
             </section>
           )}
 
-          <section className={`mt-5 ${card}`}>
-            <div className="flex items-baseline justify-between gap-3">
-              <h2 className={h2}>{held ? "Variable spend over time" : "Spend over time"}</h2>
-              {/* The peak names its day as well as its figure: the number alone
-                  tells you the axis is right, the day tells you where to look. */}
-              <p className="shrink-0 font-mono text-[11px] text-muted tabular-nums">
-                peak {formatAmountRound(peak?.amount ?? 0)}
-                {peak && ` · ${tipDate(peak)}`}
-              </p>
-            </div>
-
-            {/* The strip states the held-out figure before the chart does, which
-                is what makes removing it a split rather than a silence. */}
-            {fixed.count > 0 && (
-              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-line bg-violet-weak px-3 py-2">
-                <span className="text-[13.5px] font-medium tabular-nums">
-                  Fixed {formatAmountRound(fixed.total)}
-                </span>
-                <span className="text-[12.5px] text-muted">
-                  {fixed.count} charge{fixed.count === 1 ? "" : "s"} · {fixed.labels.join(", ")}
-                  {held && " · held out of the daily series"}
-                </span>
-                <button
-                  onClick={() => setShowFixed(!showFixed)}
-                  className="ml-auto cursor-pointer text-[12.5px] font-medium text-accent hover:underline"
-                >
-                  {showFixed ? "Hold out again" : "Show in chart"}
-                </button>
+          <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
+            <section className={card}>
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className={h2}>{held ? "Variable spend over time" : "Spend over time"}</h2>
+                <p className="shrink-0 font-mono text-[11px] text-muted tabular-nums">
+                  peak {formatAmountRound(peak?.amount ?? 0)}
+                  {peak && ` · ${tipDate(peak)}`}
+                </p>
               </div>
-            )}
 
-            <Bars data={series} tick={held ? (b) => hasFixed(b, fixed.days) : undefined} />
-          </section>
+              {fixed.count > 0 && (
+                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-line bg-violet-weak px-3 py-2">
+                  <span className="text-[13.5px] font-medium tabular-nums">
+                    Fixed {formatAmountRound(fixed.total)}
+                  </span>
+                  <span className="text-[12.5px] text-muted">
+                    {fixed.count} charge{fixed.count === 1 ? "" : "s"} · {fixed.labels.join(", ")}
+                    {held && " · held out"}
+                  </span>
+                  <button
+                    onClick={() => setShowFixed(!showFixed)}
+                    className="ml-auto cursor-pointer text-[12.5px] font-medium text-accent hover:underline"
+                  >
+                    {showFixed ? "Hold out again" : "Show in chart"}
+                  </button>
+                </div>
+              )}
 
-          <div className="mt-6 grid gap-6 lg:grid-cols-2">
+              <Bars data={series} tick={held ? (b) => hasFixed(b, fixed.days) : undefined} />
+            </section>
+
             <section className={card}>
               <h2 className={h2}>Where it went</h2>
               <Ranked rows={byCategory} total={now.spent} />
             </section>
+          </div>
 
-            <div className="space-y-6">
-              <section className={card}>
-                <h2 className={h2}>Accounts vs cards</h2>
-                <Split account={onAccounts} cardTotal={onCards} />
-              </section>
+          <div className="mt-6 grid gap-6 lg:grid-cols-2">
+            <section className={card}>
+              <h2 className={h2}>Accounts vs cards</h2>
+              <Split account={onAccounts} cardTotal={onCards} />
+            </section>
 
-              <section className={card}>
-                <h2 className={h2}>Top sources</h2>
-                <Ranked rows={bySource} total={now.spent} />
-              </section>
-            </div>
+            <section className={card}>
+              <h2 className={h2}>Top sources</h2>
+              <Ranked rows={bySource} total={now.spent} />
+            </section>
           </div>
 
           <section className={`mt-6 ${card}`}>
-            <h2 className={h2}>Biggest single spends</h2>
-            {/* A table, not a chart: five exact figures beat five tiny bars. */}
+            <h2 className={h2}>Largest purchases</h2>
             <ul className="mt-3 divide-y divide-line">
               {biggest(rows).map((t, i) => (
-                <li key={i} className="flex items-center gap-3 py-2.5 text-sm">
-                  <span className="min-w-0 flex-1 truncate">
-                    {t.title}
-                    <span className="ml-2 text-muted">{t.category}</span>
+                <li key={i} className="flex items-center gap-3 py-3">
+                  <span className="grid size-7 shrink-0 place-items-center rounded-full bg-hover text-[11px] font-semibold text-muted tabular-nums">
+                    {i + 1}
                   </span>
-                  <span className="hidden shrink-0 text-muted sm:block">{t.source}</span>
-                  <span className="shrink-0 tabular-nums">{formatAmount(t.amount)}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{t.title}</p>
+                    <p className="mt-0.5 truncate text-xs text-muted">
+                      {t.category} · {t.source}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-sm font-medium tabular-nums">
+                    {formatAmount(t.amount)}
+                  </span>
                 </li>
               ))}
-              {rows.length === 0 && (
-                <li className="py-3 text-sm text-muted">Nothing recorded in this window.</li>
-              )}
             </ul>
           </section>
         </>

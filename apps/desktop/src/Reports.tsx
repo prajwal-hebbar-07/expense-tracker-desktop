@@ -21,21 +21,27 @@ const TONE: Record<Severity, { ring: string; text: string; icon: typeof Alert }>
 function SplitBar({ essentials, discretionary }: { essentials: number; discretionary: number }) {
   const total = essentials + discretionary || 1;
   return (
-    <div className="mt-4">
-      <div className="flex h-3 gap-[2px] overflow-hidden rounded-full">
+    <div className="mt-3">
+      <div className="flex h-3 gap-[2px] overflow-hidden rounded-full bg-hover">
         <div className="bg-accent" style={{ width: `${(essentials / total) * 100}%` }} />
         <div className="bg-series-b" style={{ width: `${(discretionary / total) * 100}%` }} />
       </div>
-      <ul className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+      <ul className="mt-3 space-y-2 text-[13px]">
         <li className="flex items-center gap-2">
           <span className="size-2.5 shrink-0 rounded-full bg-accent" />
-          <span className="flex-1">Essentials</span>
-          <span className="tabular-nums">{formatAmount(essentials)}</span>
+          <span className="flex-1 text-muted">Essentials</span>
+          <span className="font-medium tabular-nums">{formatAmount(essentials)}</span>
+          <span className="w-9 text-right text-xs text-muted tabular-nums">
+            {Math.round((essentials / total) * 100)}%
+          </span>
         </li>
         <li className="flex items-center gap-2">
           <span className="size-2.5 shrink-0 rounded-full bg-series-b" />
-          <span className="flex-1">Controllable</span>
-          <span className="tabular-nums">{formatAmount(discretionary)}</span>
+          <span className="flex-1 text-muted">Controllable</span>
+          <span className="font-medium tabular-nums">{formatAmount(discretionary)}</span>
+          <span className="w-9 text-right text-xs text-muted tabular-nums">
+            {Math.round((discretionary / total) * 100)}%
+          </span>
         </li>
       </ul>
     </div>
@@ -159,8 +165,8 @@ export default function Reports() {
         <div>
           <h1 className={h1}>Report</h1>
           <p className={lede}>
-            What your spending in this period says, and what would change it. Figures come
-            from your own ledger; transfers between your own accounts are left out.
+            See what shaped this period and the clearest next move. Internal transfers are
+            excluded.
           </p>
         </div>
         {/* On demand, never on mount or on a period change: it spends tokens. */}
@@ -173,7 +179,11 @@ export default function Reports() {
         </button>
       </div>
 
-      <PeriodPicker controls={controls} label={win.label} />
+      <PeriodPicker
+        controls={controls}
+        label={win.label}
+        summary={{ from: win.from, to: win.to, count: rows.length }}
+      />
 
       {shown?.error && (
         <p role="alert" className={errorBox}>
@@ -204,43 +214,71 @@ export default function Reports() {
       ) : (
         <>
           <section className={`mt-6 ${card}`}>
-            <p className={`text-lg leading-relaxed font-medium ${stale ? "text-muted" : ""}`}>
-              {view.headline}
-            </p>
-            <p className="mt-2 text-sm text-muted">
-              {formatAmount(report.spent)} over {report.days} days ·{" "}
-              {formatAmountRound(Math.round(report.spent / report.days))} a day
-            </p>
-            <SplitBar
-              essentials={report.essentials}
-              discretionary={report.discretionary}
-            />
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)]">
+              <div className="min-w-0">
+                <p className="text-[11px] font-medium tracking-[0.08em] text-accent uppercase">
+                  At a glance
+                </p>
+                <h2
+                  className={`mt-2 max-w-3xl text-[20px] leading-snug font-semibold tracking-[-0.015em] sm:text-[22px] ${
+                    stale ? "text-muted" : ""
+                  }`}
+                >
+                  {view.headline}
+                </h2>
+                <dl className="mt-5 grid max-w-lg grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-line bg-field px-3.5 py-3">
+                    <dt className="text-[11px] font-medium tracking-wide text-muted uppercase">
+                      Spent
+                    </dt>
+                    <dd className="mt-1 text-lg font-semibold tabular-nums">
+                      {formatAmount(report.spent)}
+                    </dd>
+                  </div>
+                  <div className="rounded-xl border border-line bg-field px-3.5 py-3">
+                    <dt className="text-[11px] font-medium tracking-wide text-muted uppercase">
+                      Per day
+                    </dt>
+                    <dd className="mt-1 text-lg font-semibold tabular-nums">
+                      {formatAmountRound(Math.round(report.spent / report.days))}
+                    </dd>
+                  </div>
+                </dl>
+                <p className="mt-2 text-xs text-muted">{report.days} days in this report</p>
+              </div>
+
+              <div className="rounded-xl border border-line bg-field p-4">
+                <div className="flex items-baseline justify-between gap-3">
+                  <h3 className="text-sm font-semibold">Spend mix</h3>
+                  <span className="text-xs text-muted">what can move</span>
+                </div>
+                <SplitBar
+                  essentials={report.essentials}
+                  discretionary={report.discretionary}
+                />
+              </div>
+            </div>
 
             {generating && (
-              <p className="mt-4 border-t border-line pt-3 text-[12.5px] text-muted">
-                Writing a report on {win.label}…
-              </p>
+              <div className="mt-4 border-t border-line pt-3">
+                <span className="rounded-full bg-violet-weak px-2.5 py-1 text-[11px] font-medium text-violet">
+                  Writing {win.label}…
+                </span>
+              </div>
             )}
 
-            {/* The figures moved after the model read them, so the prose below
-                is about a window that no longer looks like this. Said out loud:
-                the alternative is paragraphs quietly contradicting the bar
-                above them. Never refreshed on its own — that would spend tokens
-                nobody asked for. */}
             {stale && (
-              <p className="mt-4 rounded-md border border-line bg-violet-weak px-3 py-2 text-[12.5px]">
-                This period has changed since the report was written. Press{" "}
-                <span className="font-medium">Rewrite with AI</span> for a current one.
+              <p className="mt-4 rounded-xl border border-line bg-violet-weak px-3.5 py-2.5 text-[12.5px]">
+                This period changed after the report was written. Rewrite it for a current
+                read.
               </p>
             )}
 
             {written && (
-              <p className="mt-3 text-[11.5px] text-muted">
-                Written by {shown?.model ?? "a language model"} from the figures on this
-                page
-                {shown?.writtenAt && ` on ${formatDay(shown.writtenAt.slice(0, 10))}`}. The
-                split above is arithmetic on your ledger; check anything surprising in the
-                prose against Analytics.
+              <p className="mt-4 border-t border-line pt-3 text-[11.5px] text-muted">
+                AI · {shown?.model ?? "language model"}
+                {shown?.writtenAt && ` · ${formatDay(shown.writtenAt.slice(0, 10))}`} · Check
+                the prose against Analytics.
               </p>
             )}
           </section>
@@ -248,9 +286,6 @@ export default function Reports() {
           {view.findings.length > 0 && (
             <section className="mt-6">
               <h2 className={h2}>What stands out</h2>
-              {/* Independent cards, so extra width becomes a third column rather
-                  than three wider ones — a finding is a paragraph, and a 700px
-                  measure is where one stops being readable. */}
               <div className="mt-3 grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
                 {view.findings.map((f, n) => {
                   const tone = TONE[f.severity];
@@ -258,18 +293,16 @@ export default function Reports() {
                   return (
                     <article
                       key={n}
-                      className={`rounded-2xl border bg-surface p-5 shadow-card ${tone.ring}`}
+                      className={`rounded-2xl border p-4 shadow-card sm:p-5 ${tone.ring}`}
                     >
-                      <div className="flex items-start gap-3">
-                        <Icon className={`mt-0.5 size-5 shrink-0 ${tone.text}`} />
-                        <div className="min-w-0">
-                          <h3 className="font-medium">{f.title}</h3>
-                          <p className="mt-1 text-sm tabular-nums">{f.figure}</p>
-                          {/* The "why" is the point of the page: a number without
-                              a consequence is just the Analytics tab again. */}
-                          <p className="mt-2 text-sm leading-relaxed text-muted">{f.why}</p>
-                        </div>
+                      <div className="flex items-center gap-3">
+                        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-surface shadow-card">
+                          <Icon className={`size-5 ${tone.text}`} />
+                        </span>
+                        <h3 className="min-w-0 font-medium">{f.title}</h3>
                       </div>
+                      <p className="mt-4 text-[17px] font-semibold tabular-nums">{f.figure}</p>
+                      <p className="mt-2 text-[13px] leading-relaxed text-muted">{f.why}</p>
                     </article>
                   );
                 })}
@@ -278,32 +311,37 @@ export default function Reports() {
           )}
 
           {view.habits.length > 0 && (
-            <section className={`mt-6 ${card}`}>
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <section className="mt-6">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className={h2}>Habits worth building</h2>
                 {saveable > 0 && (
-                  <p className="text-sm text-muted">
-                    Together, about{" "}
-                    <span className="font-medium text-ink tabular-nums">
-                      {formatAmountRound(saveable)}
-                    </span>{" "}
-                    a month
+                  <p className="rounded-full bg-credit-weak px-3 py-1 text-xs font-medium text-credit tabular-nums">
+                    ~{formatAmountRound(saveable)}/month together
                   </p>
                 )}
               </div>
-              <ul className="mt-4 divide-y divide-line">
+              <ul className="mt-3 grid gap-3 lg:grid-cols-2">
                 {view.habits.map((h, n) => (
-                  <li key={n} className="flex items-start gap-3 py-4 first:pt-1">
-                    <Lightbulb className="mt-0.5 size-5 shrink-0 text-series-b" />
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-medium">{h.title}</h3>
-                      <p className="mt-1 text-sm leading-relaxed text-muted">{h.how}</p>
-                    </div>
-                    {h.saves > 0 && (
-                      <span className="shrink-0 rounded-lg bg-credit-weak px-2 py-1 text-xs font-medium text-credit tabular-nums">
-                        ~{formatAmountRound(h.saves)}/mo
+                  <li
+                    key={n}
+                    className="rounded-2xl border border-line bg-surface p-4 shadow-card sm:p-5"
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-series-b-weak">
+                        <Lightbulb className="size-5 text-series-b" />
                       </span>
-                    )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <h3 className="font-medium">{h.title}</h3>
+                          {h.saves > 0 && (
+                            <span className="shrink-0 text-xs font-medium text-credit tabular-nums">
+                              ~{formatAmountRound(h.saves)}/mo
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1.5 text-[13px] leading-relaxed text-muted">{h.how}</p>
+                      </div>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -312,16 +350,18 @@ export default function Reports() {
 
           {view.reframes.length > 0 && (
             <section className="mt-6">
-              <h2 className={h2}>Same numbers, different angle</h2>
+              <h2 className={h2}>Another way to see it</h2>
               <div className="mt-3 grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
                 {view.reframes.map((r, n) => (
                   <article
                     key={n}
-                    className="rounded-2xl border border-line bg-surface p-5 shadow-card"
+                    className="rounded-2xl border border-line bg-surface p-4 shadow-card sm:p-5"
                   >
-                    <Repeat className="size-5 text-violet" />
+                    <span className="grid size-9 place-items-center rounded-xl bg-violet-weak">
+                      <Repeat className="size-5 text-violet" />
+                    </span>
                     <h3 className="mt-3 font-medium">{r.title}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-muted">{r.body}</p>
+                    <p className="mt-1.5 text-[13px] leading-relaxed text-muted">{r.body}</p>
                   </article>
                 ))}
               </div>
@@ -330,19 +370,20 @@ export default function Reports() {
 
           {report.target > 0 && (
             <section className={`mt-6 ${card}`}>
-              <div className="flex items-start gap-3">
-                <Target className="mt-0.5 size-5 shrink-0 text-accent" />
-                <div>
-                  <h2 className={h2}>Next period</h2>
-                  <p className="mt-2 text-sm leading-relaxed text-muted">
-                    Hold the next {report.days} days to{" "}
-                    <span className="font-medium text-ink tabular-nums">
-                      {formatAmountRound(report.target)}
-                    </span>{" "}
-                    — the same essentials, 10% off the controllable half. That is a
-                    target you can hit by changing what you buy, not where you live.
+              <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
+                <span className="grid size-11 place-items-center rounded-xl bg-accent-weak">
+                  <Target className="size-6 text-accent" />
+                </span>
+                <div className="min-w-0">
+                  <h2 className={h2}>Next period target</h2>
+                  <p className="mt-1 text-[24px] leading-none font-semibold tracking-[-0.02em] tabular-nums">
+                    {formatAmountRound(report.target)}
                   </p>
                 </div>
+                <p className="text-[13px] leading-relaxed text-muted sm:col-start-2">
+                  Aim for this across the next {report.days} days. Essentials stay intact;
+                  controllable spending comes down 10%.
+                </p>
               </div>
             </section>
           )}
