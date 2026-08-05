@@ -1,7 +1,14 @@
 import Database from "@tauri-apps/plugin-sql";
-import { ANALYTICS_FEED, LOAD_ANALYSIS, SAVE_ANALYSIS } from "./queries";
+import {
+  ANALYTICS_FEED,
+  LOAD_ANALYSIS,
+  LOAD_REPORT,
+  SAVE_ANALYSIS,
+  SAVE_REPORT,
+} from "./queries";
 import type { Txn } from "./analyticsFeed";
 import type { Insight } from "./insights";
+import type { Written } from "./reportAi";
 
 // One connection for the whole app, opened once at import. Loading the same URL
 // again returns the existing handle, but two live connections writing at once
@@ -53,23 +60,25 @@ export type StoredAnalysis = {
   created_at: string;
 };
 
+/** A JSON array column, back as a list. A row this app wrote, so the parse
+ *  should not fail — but a corrupted or hand-edited value must cost the
+ *  section it feeds, never the page. */
+function list<T>(json: string): T[] {
+  try {
+    const parsed: unknown = JSON.parse(json);
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function loadAnalysis(from: string, to: string): Promise<StoredAnalysis | null> {
   const rows = await (await db).select<(Omit<StoredAnalysis, "insights"> & { insights: string })[]>(
     LOAD_ANALYSIS,
     [from, to],
   );
   if (rows.length === 0) return null;
-  const row = rows[0];
-  // A row this app wrote, so the parse should not fail — but a corrupted or
-  // hand-edited value must not take the whole page down with it.
-  let insights: Insight[] = [];
-  try {
-    const parsed: unknown = JSON.parse(row.insights);
-    if (Array.isArray(parsed)) insights = parsed as Insight[];
-  } catch {
-    insights = [];
-  }
-  return { ...row, insights };
+  return { ...rows[0], insights: list<Insight>(rows[0].insights) };
 }
 
 export async function saveAnalysis(
@@ -84,5 +93,47 @@ export async function saveAnalysis(
     a.summary,
     JSON.stringify(a.insights),
     a.fingerprint,
+  ]);
+}
+
+/** What the model wrote about one Report window. The figures on the page are
+ *  still computed from the ledger on every render — only the prose is stored,
+ *  so a report read back from here can never contradict the split bar above
+ *  it. See docs/report-ai.md. */
+export type StoredReport = Written & {
+  model: string;
+  fingerprint: string;
+  created_at: string;
+};
+
+/** The three JSON columns, as they come out of SQLite. */
+type ReportRow = Omit<StoredReport, "findings" | "habits" | "reframes"> & {
+  findings: string;
+  habits: string;
+  reframes: string;
+};
+
+export async function loadReport(from: string, to: string): Promise<StoredReport | null> {
+  const rows = await (await db).select<ReportRow[]>(LOAD_REPORT, [from, to]);
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  return {
+    ...row,
+    findings: list<StoredReport["findings"][number]>(row.findings),
+    habits: list<StoredReport["habits"][number]>(row.habits),
+    reframes: list<StoredReport["reframes"][number]>(row.reframes),
+  };
+}
+
+export async function saveReport(from: string, to: string, r: Omit<StoredReport, "created_at">) {
+  await (await db).execute(SAVE_REPORT, [
+    from,
+    to,
+    r.model,
+    r.headline,
+    JSON.stringify(r.findings),
+    JSON.stringify(r.habits),
+    JSON.stringify(r.reframes),
+    r.fingerprint,
   ]);
 }

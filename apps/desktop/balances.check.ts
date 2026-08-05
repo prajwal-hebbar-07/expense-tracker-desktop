@@ -12,11 +12,13 @@ import {
   ANALYTICS_FEED,
   CARD_OUTSTANDING,
   LOAD_ANALYSIS,
+  LOAD_REPORT,
   MONTH_TOTALS,
   INSERT_TRANSACTION,
   UPDATE_TRANSACTION,
   DELETE_TRANSACTION,
   SAVE_ANALYSIS,
+  SAVE_REPORT,
   SET_CATEGORY,
 } from "./src/queries.ts";
 
@@ -24,7 +26,7 @@ import {
 function schema(): string {
   const rust = readFileSync(new URL("./src-tauri/src/lib.rs", import.meta.url), "utf8");
   const sql = [...rust.matchAll(/sql: "([\s\S]*?)",\n\s*kind:/g)].map((m) => m[1]);
-  assert.equal(sql.length, 7, "expected 7 migrations in lib.rs");
+  assert.equal(sql.length, 8, "expected 8 migrations in lib.rs");
   return sql.join("\n");
 }
 
@@ -174,6 +176,41 @@ test("saving an analysis twice for one window overwrites it", () => {
   assert.equal(row.fingerprint, "4:150:200", "the fingerprint must move with the prose");
   assert.match(String(row.created_at), /^\d{4}-\d{2}-\d{2}T/, "ISO-8601 UTC, per rule 4");
   assert.deepEqual(JSON.parse(String(row.insights)), [{ title: "t", detail: "d" }]);
+});
+
+// Same discipline for the written report: one row per Report window, replaced
+// by the next press — docs/report-ai.md.
+const saveReport = (db: DatabaseSync, headline: string, fingerprint: string) =>
+  db
+    .prepare(SAVE_REPORT.replace(/\$\d+/g, "?"))
+    .run(
+      "2026-07-01",
+      "2026-07-31",
+      "gpt-oss:120b",
+      headline,
+      '[{"title":"f","figure":"₹1","why":"w","severity":"note"}]',
+      '[{"title":"h","how":"do it","saves":150000}]',
+      '[{"title":"r","body":"b"}]',
+      fingerprint,
+    );
+
+test("regenerating a report for one window replaces it", () => {
+  const db = seed();
+  saveReport(db, "first", "3:100:200");
+  saveReport(db, "second", "4:150:200");
+
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM report").get()!.n, 1);
+  const row = db
+    .prepare(LOAD_REPORT.replace("$1", "?").replace("$2", "?"))
+    .get("2026-07-01", "2026-07-31")!;
+  assert.equal(row.headline, "second");
+  assert.equal(row.fingerprint, "4:150:200", "the fingerprint must move with the prose");
+  assert.match(String(row.created_at), /^\d{4}-\d{2}-\d{2}T/, "ISO-8601 UTC");
+  // Three documents, read back whole. A habit's `saves` stays paise across the
+  // boundary — the badge divides, the column does not.
+  assert.deepEqual(JSON.parse(String(row.habits)), [{ title: "h", how: "do it", saves: 150000 }]);
+  assert.equal(JSON.parse(String(row.findings))[0].severity, "note");
+  assert.deepEqual(JSON.parse(String(row.reframes)), [{ title: "r", body: "b" }]);
 });
 
 test("direction is constrained and defaults to debit", () => {

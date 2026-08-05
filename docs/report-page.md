@@ -3,14 +3,16 @@ id: report-page
 type: decision
 status: active
 updated: 2026-08-05
-links: [analytics-page, analytics-real-feed, expense-categories, design-tokens]
+links: [analytics-page, analytics-real-feed, expense-categories, design-tokens, report-ai]
 ---
 
 # The Report screen
 
 A fifth tab (`apps/desktop/src/Reports.tsx`) that reads the same feed as [[analytics-page]] — the real ledger since 2026-08-05, [[analytics-real-feed]] — and writes about it: what stood out, why it costs something, what habit would change it, and the same figures seen from an angle that changes the decision. Analytics answers *how much*; Report answers *so what*.
 
-The generator (`apps/desktop/src/report.ts`) is **rules, not a model**. Every sentence interpolates a figure computed from the rows, so any claim on the page traces back to an arithmetic operation on the user's own data. That is the difference between a report and a horoscope, and it is the property to preserve if a generated version ever replaces it: same `Report` shape, same "every claim carries its number" rule.
+The generator (`apps/desktop/src/report.ts`) is **rules, not a model**. Every sentence interpolates a figure computed from the rows, so any claim on the page traces back to an arithmetic operation on the user's own data. That is the difference between a report and a horoscope.
+
+Since 2026-08-05 a model can write the prose instead, on the **Generate report** button and only there — [[report-ai]], which owns the prompt, the parser, the `report` table and the staleness rule. It fills this same `Report` shape and is held to the same rule by its parser: a finding with no figure is dropped rather than rendered. Everything below applies to both authors. The rules version is not a fallback waiting to be deleted: it is what a user with no model configured sees, and the contract the prompt is written against.
 
 **Investing advice is deliberately out of scope.** The page discusses spending the user controls and nothing else — no returns, no products, no "if you had invested this".
 
@@ -24,10 +26,11 @@ The generator (`apps/desktop/src/report.ts`) is **rules, not a model**. Every se
 6. **A rule that finds nothing must stay silent.** Every push into `findings`/`habits`/`reframes` sits behind a threshold; a report that always says the same eight things is wallpaper.
 7. **Keep the window maths in `usePeriod`** (`apps/desktop/src/PeriodPicker.tsx`), shared with Analytics, so the two screens can never disagree about what "this month" means.
 8. **Never let `Uncategorised` become the advice.** It is the label the query gives a row nobody has filed ([[analytics-real-feed]]), so it is missing information, not a spending habit. It counts in every total — the money moved — but `topControllable` skips it, and above 20% of spend the page says so directly and offers the one action that fixes it (Transactions → Categorise). "Uncategorised is your biggest controllable cost" is the sentence this rule exists to prevent; `report.check.ts` asserts against it.
+9. **Never let the model write a figure the page draws.** `spent`, the split bar and `target` are recomputed from the ledger on every render whichever author wrote the prose ([[report-ai]] rule 2). A generated report that could move a bar would make the one checkable thing on the page unfalsifiable.
 
 ## Contract
 
-`apps/desktop/src/report.ts` — `buildReport(rows, win, prevRows): Report`:
+`apps/desktop/src/report.ts` — `buildFacts(rows, win, prevRows): Facts` computes every figure; `buildReport(rows, win, prevRows): Report` turns it into prose, and [[report-ai]] turns the same `Facts` into a prompt:
 
 | Field | Meaning |
 |---|---|

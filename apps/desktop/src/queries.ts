@@ -102,6 +102,22 @@ export const LOAD_ANALYSIS = `
   SELECT model, summary, insights, fingerprint, created_at
   FROM analysis WHERE window_from = $1 AND window_to = $2`;
 
+/** One written report per window, same upsert as `SAVE_ANALYSIS`: pressing
+ *  Generate again replaces it. `findings`, `habits` and `reframes` are JSON
+ *  arrays — documents, never queried by field. See docs/report-ai.md. */
+export const SAVE_REPORT = `
+  INSERT INTO report (window_from, window_to, model, headline, findings, habits, reframes, fingerprint)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+  ON CONFLICT(window_from, window_to) DO UPDATE SET
+    model = excluded.model, headline = excluded.headline,
+    findings = excluded.findings, habits = excluded.habits,
+    reframes = excluded.reframes, fingerprint = excluded.fingerprint,
+    created_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')`;
+
+export const LOAD_REPORT = `
+  SELECT model, headline, findings, habits, reframes, fingerprint, created_at
+  FROM report WHERE window_from = $1 AND window_to = $2`;
+
 // `category` is still NOT NULL with no default from migration 1, and the form
 // does not ask for one, so every new row starts at '' — the uncategorised
 // bucket. Categorise on the Transactions page backfills it; see

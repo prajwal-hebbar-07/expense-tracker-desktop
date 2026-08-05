@@ -142,6 +142,34 @@ fn migrations() -> Vec<Migration> {
         ",
             kind: MigrationKind::Up,
         },
+        // One written report per Report window, same shape and same discipline
+        // as `analysis` above: the window is the primary key, so pressing
+        // Generate again replaces the row rather than growing a history.
+        //
+        // `headline` is one sentence; `findings`, `habits` and `reframes` are
+        // JSON arrays, each read back whole and rendered whole. The page still
+        // computes its own figures — spent, essentials, target — from the
+        // ledger, so nothing a model wrote can move a number on screen.
+        // See docs/report-ai.md.
+        Migration {
+            version: 8,
+            description: "create_report_table",
+            sql: "
+            CREATE TABLE report (
+              window_from TEXT NOT NULL,
+              window_to   TEXT NOT NULL,
+              model       TEXT NOT NULL,
+              headline    TEXT NOT NULL,
+              findings    TEXT NOT NULL,
+              habits      TEXT NOT NULL,
+              reframes    TEXT NOT NULL,
+              fingerprint TEXT NOT NULL,
+              created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+              PRIMARY KEY (window_from, window_to)
+            );
+        ",
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

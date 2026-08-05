@@ -8,7 +8,7 @@ links: []
 
 # Map
 
-Thirty-eight nodes besides this one is well past the point where the graph needs a map. Start from the question, not the top.
+Thirty-nine nodes besides this one is well past the point where the graph needs a map. Start from the question, not the top.
 
 ## Where do I start?
 
@@ -27,6 +27,7 @@ Thirty-eight nodes besides this one is well past the point where the graph needs
 | How does the app reach an LLM, and where is the API key? | [[ollama-flow]], [[ollama-key-in-settings]] |
 | How does a transaction get a category? | [[expense-categories]] |
 | How does a period get an AI read? | [[analytics-insights]] |
+| How does the Report page get written by a model? | [[report-ai]] |
 | Where do the numbers on Analytics and Report come from? | [[analytics-real-feed]] |
 | Does the AI analysis survive a reload, and how do I know it is still true? | [[analysis-persistence]] |
 | I am touching a chart or a tile | [[summary-tile-delta]], [[chart-outlier]], [[filter-row]] |
