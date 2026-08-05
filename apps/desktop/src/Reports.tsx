@@ -6,7 +6,7 @@ import { Alert, Check, Info, Lightbulb, Repeat, Target } from "./icons";
 import PeriodPicker, { usePeriod } from "./PeriodPicker";
 import { totals, within } from "./analyticsFeed";
 import { Severity, buildFacts, buildReport } from "./report";
-import { Written, buildReportPrompt, parseWrittenReport } from "./reportAi";
+import { Written, buildReportPrompt, parseWrittenReport, reportSavingsBudget } from "./reportAi";
 import { getOllamaConfig, loadReport, saveReport } from "./db";
 import { formatDay } from "./day";
 
@@ -145,7 +145,7 @@ export default function Reports() {
       });
       // Parsed before it is written: a malformed reply must leave the previous
       // stored report for this window intact.
-      const w = parseWrittenReport(reply, Math.round(facts.discretionary / facts.months));
+      const w = parseWrittenReport(reply, reportSavingsBudget(facts));
       await saveReport(win.from, win.to, { model: settings.model, ...w, fingerprint });
       setAi({
         window: winKey,

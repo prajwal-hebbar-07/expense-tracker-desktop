@@ -18,6 +18,9 @@ export const CATEGORIES = [
   "Shopping",
   "Bills & Utilities",
   "Rent",
+  // Debt repayments are commitments, not shopping. Keeping them separate lets
+  // the Report protect them while looking for savings elsewhere.
+  "Loans & EMIs",
   "Health",
   "Entertainment",
   "Travel",
@@ -55,6 +58,7 @@ export function buildPrompt(items: Item[]): string {
     "Categorise each personal-finance transaction below.",
     "",
     `Allowed categories: ${CATEGORIES.join(", ")}.`,
+    "Use Loans & EMIs for loan repayments and EMIs, not ordinary card purchases.",
     "",
     "Transactions:",
     ...lines,

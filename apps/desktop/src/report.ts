@@ -45,15 +45,26 @@ const GROCERIES: Category = "Groceries";
  *  moved whether or not anyone named it. */
 const UNFILED = "Uncategorised";
 
-/** Spending you cannot stop this month without changing where you live or what
- *  you eat. The split drives most of the report — a report that tells you to
- *  cut rent is not a report. */
-const ESSENTIAL: Record<string, true | undefined> = {
+/** Spending you cannot stop this month without changing where you live, missing
+ *  a debt payment, or cutting basic needs. The split drives most of the report
+ *  — a report that tells you to cut rent or an EMI is not a report. Exported so
+ *  the AI fact sheet labels the same rows as protected. */
+export const ESSENTIAL: Record<string, true | undefined> = {
   Rent: true,
+  "Loans & EMIs": true,
   Groceries: true,
   "Bills & Utilities": true,
   Health: true,
 } satisfies Partial<Record<Category, true>>;
+
+// ponytail: legacy rows cannot be re-categorised in the current UI. Protect
+// only unmistakable loan wording here; remove this title check when category
+// editing can migrate those rows to Loans & EMIs.
+const LEGACY_EMI = /\bemi\b|\b(?:home|car|personal|education) loan\b|\bloan (?:payment|repayment)\b/i;
+
+export function isEssentialExpense(row: Pick<Txn, "category" | "title">): boolean {
+  return Boolean(ESSENTIAL[row.category] || LEGACY_EMI.test(row.title));
+}
 
 export const SMALL = 500_00; // ₹500 — the "didn't think about it" threshold
 export const BIG = 3_000_00; // ₹3,000 — the "should have slept on it" threshold
@@ -146,9 +157,12 @@ export function buildFacts(all: Txn[], win: Window, prevRows: Txn[]): Facts {
   const rows = all.filter((t) => t.direction === "debit");
   const spent = sum(rows);
   const days = daysBetween(win.from, win.to);
-  const essentials = sum(rows.filter((t) => ESSENTIAL[t.category]));
+  const protectedRows = rows.filter(isEssentialExpense);
+  const reviewableRows = rows.filter((row) => !isEssentialExpense(row));
+  const essentials = sum(protectedRows);
   const discretionary = spent - essentials;
   const cats = byCategory(rows);
+  const reviewableCats = byCategory(reviewableRows);
   const food = rows.filter((t) => t.category === FOOD);
 
   return {
@@ -160,7 +174,7 @@ export function buildFacts(all: Txn[], win: Window, prevRows: Txn[]): Facts {
     essentials,
     discretionary,
     cats,
-    topControllable: cats.find(([c]) => !ESSENTIAL[c] && c !== UNFILED),
+    topControllable: reviewableCats.find(([c]) => c !== UNFILED),
     unfiled: sum(rows.filter((t) => t.category === UNFILED)),
     rent: sum(rows.filter((t) => t.category === RENT)),
     eatingOut: sum(food),
@@ -168,8 +182,8 @@ export function buildFacts(all: Txn[], win: Window, prevRows: Txn[]): Facts {
     groceries: sum(rows.filter((t) => t.category === GROCERIES)),
     subs: sum(rows.filter((t) => t.category === SUBSCRIPTIONS)),
     onCards: sum(rows.filter((t) => t.kind === "card")),
-    smalls: rows.filter((t) => t.amount < SMALL && !ESSENTIAL[t.category]),
-    bigs: rows.filter((t) => t.amount >= BIG && !ESSENTIAL[t.category]),
+    smalls: reviewableRows.filter((t) => t.amount < SMALL),
+    bigs: reviewableRows.filter((t) => t.amount >= BIG),
     before: sum(prevRows.filter((t) => t.direction === "debit")),
     income: sum(all.filter((t) => t.direction === "credit")),
     spendDays: new Set(rows.map((t) => t.date)).size,

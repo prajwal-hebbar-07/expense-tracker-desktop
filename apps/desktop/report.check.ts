@@ -43,6 +43,19 @@ test("the target cuts only the controllable half", () => {
   );
 });
 
+test("loan EMIs are protected, never a controllable saving", () => {
+  const rows: Txn[] = [
+    { date: "2026-07-01", amount: 10_090_00, direction: "debit", category: "Other", source: "HDFC", kind: "account", title: "Personal loan repayment" },
+    { date: "2026-07-20", amount: 5_000_00, direction: "debit", category: "Loans & EMIs", source: "HDFC", kind: "account", title: "Car loan EMI" },
+    { date: "2026-07-03", amount: 4_000_00, direction: "debit", category: "Shopping", source: "HDFC", kind: "account", title: "Amazon" },
+  ];
+  const r = buildReport(rows, july, []);
+  assert.equal(r.essentials, 15_090_00, "car and personal loan repayments stay protected");
+  assert.equal(r.discretionary, 4_000_00);
+  assert.ok(r.target >= r.essentials);
+  assert.doesNotMatch(text(r), /Loans & EMIs is your biggest controllable cost/);
+});
+
 test("an empty window reports nothing rather than dividing by zero", () => {
   const empty: Window = { from: "2030-01-01", to: "2030-01-31", label: "Jan 2030" };
   const r = buildReport([], empty, []);

@@ -40,13 +40,13 @@ The closed list, in `categorize.ts`. It is the app's **only** category vocabular
 
 ```
 Food & Dining, Groceries, Transport, Shopping, Bills & Utilities,
-Rent, Health, Entertainment, Travel, Education, Subscriptions,
-Income, Other
+Rent, Loans & EMIs, Health, Entertainment, Travel, Education,
+Subscriptions, Income, Other
+
 ```
+`Income` covers credits. `Rent` is also the tag [[chart-outlier]] reads, and the whole of `FIXED` in `analyticsFeed.ts`. `Loans & EMIs` covers loan repayments and EMIs, not ordinary card purchases; [[report-page]] protects it alongside rent and basic needs.
 
-`Income` covers credits. `Rent` is also the tag [[chart-outlier]] reads, and the whole of `FIXED` in `analyticsFeed.ts`.
-
-**Adding one is a data decision, not a code change.** Old rows keep whatever they were filed under until they are re-categorised, and nothing re-categorises a non-empty row today — the last anti-pattern below: it costs tokens to overwrite a user-visible value. So a new category applies to future runs only, and the list will carry a name no existing row has until the next press. `Subscriptions` was added on 2026-08-05 for exactly this reason — [[report-page]] already had a rule keyed on it, and the feed it was written against emitted it.
+**Adding one is a data decision, not a code change.** Old rows keep whatever they were filed under until they are re-categorised, and nothing re-categorises a non-empty row today — the last anti-pattern below: it costs tokens to overwrite a user-visible value. So a new category applies to future runs only, and the list will carry a name no existing row has until the next press. `Subscriptions` and `Loans & EMIs` were added on 2026-08-05 for report rules that depend on those commitments. Existing EMIs already filed as `Other` remain stored there until category editing or re-categorisation exists; [[report-page]] still protects rows whose title contains unmistakable EMI or loan-repayment wording.
 
 `Uncategorised` is **not** in the list and must never be stored. It is a display label produced by `ANALYTICS_FEED` for a row still at `''` — see [[analytics-real-feed]].
 

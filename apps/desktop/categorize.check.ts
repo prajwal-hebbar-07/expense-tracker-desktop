@@ -18,6 +18,8 @@ test("the prompt carries the ids, the direction and the closed list", () => {
   assert.match(p, /2: Salary \[money in\]/);
   assert.match(p, /Food & Dining/);
   assert.match(p, /Other/);
+  assert.match(p, /Loans & EMIs/);
+  assert.match(p, /loan repayments and EMIs/);
 });
 
 test("a clean answer files every row", () => {
