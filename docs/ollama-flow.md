@@ -2,15 +2,15 @@
 id: ollama-flow
 type: decision
 status: active
-updated: 2026-08-03
-links: [stack, persistence-sqlite, settings-schema, linux-release, expense-categories]
+updated: 2026-08-05
+links: [stack, persistence-sqlite, settings-schema, linux-release, expense-categories, analytics-insights]
 ---
 
 # Reaching Ollama
 
 The app talks to **Ollama Cloud (`https://ollama.com`) by default**, with a Bearer key from the user's paid subscription, and to a local daemon (`http://localhost:11434`, no key) by typing that URL into the same field. There is no cloud/local mode switch: the two differ only by a `base_url` value and whether a key is present. Going direct to the cloud drops the requirement that Ollama.app be installed and running; the cost is one real secret to manage, which is what most of this node is about.
 
-The Settings screen (`apps/desktop/src/OllamaSettings.tsx`) is the only UI: a server field, a write-only key field, **Connect**, a model dropdown, and **Test**. Connect saves and lists models; choosing a model then fires a real one-word completion and quotes the reply back, which is the only thing that can prove a key. Configured 2026-08-03. This node covers configuration and the transport; [[expense-categories]] is the one feature that spends the model.
+The Settings screen (`apps/desktop/src/OllamaSettings.tsx`) is the only UI: a server field, a write-only key field, **Connect**, a model dropdown, and **Test**. Connect saves and lists models; choosing a model then fires a real one-word completion and quotes the reply back, which is the only thing that can prove a key. Configured 2026-08-03. This node covers configuration and the transport; the features that spend the model are [[expense-categories]] and [[analytics-insights]].
 
 ## Rules for an agent working here
 
@@ -23,7 +23,7 @@ The Settings screen (`apps/desktop/src/OllamaSettings.tsx`) is the only UI: a se
 7. **Send the key only to `base_url`.** It is an Ollama credential; there is no second host it belongs on.
 8. **A missing key is not an error.** A local daemon has no auth at all, and ollama.com answers `/api/tags` anonymously, so the model list loads before anything is pasted.
 9. **Never treat a successful `/api/tags` as evidence the key works**, because ollama.com serves it **anonymously**: a wrong key, a revoked key, and no key at all all return the full catalogue. Only `ollama_check` — a real completion — can fail on authentication. Any UI that says "connected" after listing models is lying.
-10. **Test with `/api/chat`, not a cheaper auth-only endpoint.** `/api/ps` does 401, so it would prove the key, but not that the *chosen model* is one the subscription covers — which is the failure the user actually hits. A completion costs a few tokens and answers both.
+10. **Test with `/api/chat`, and never with a cheaper auth-only endpoint — there is no such endpoint.** `/api/ps` 401s **even with a working key** (re-probed 2026-08-05, against a key that answered 200 on `/api/chat` the same minute), so it proves nothing at all, and it would not prove that the *chosen model* is one the subscription covers either — which is the failure the user actually hits. A completion costs a few tokens and answers both.
 11. **Send `stream: false` on every `/api/chat` call.** The streaming default answers with a sequence of NDJSON objects, and deserialising that as one object fails with a parse error that reads like a schema mismatch.
 12. **Do not persist "verified".** A key can be revoked between launches, so a remembered tick asserts something the app has not checked.
 
@@ -82,14 +82,14 @@ Read and written by `getSettings()` / `setSetting()` in `apps/desktop/src/db.ts`
 
 Errors carry `{"error":"Unauthorized"}`, which `check_status()` replaces with an instruction: 401/403 point at `ollama.com/settings/keys`, 404 says the server may not offer that model, 429 says rate limited.
 
-### Auth, verified by probing ollama.com on 2026-08-03
+### Auth, verified by probing ollama.com on 2026-08-03, `/api/ps` re-probed 2026-08-05
 
-| Endpoint | No key / bad key |
-|---|---|
-| `GET /api/tags` | **200** with the full catalogue — see rule 9 |
-| `GET /v1/models` | **200** |
-| `POST /api/chat` | **401** `{"error":"Unauthorized"}` |
-| `GET /api/ps` | **401** |
+| Endpoint | No key / bad key | Working key |
+|---|---|---|
+| `GET /api/tags` | **200** with the full catalogue — see rule 9 | 200 |
+| `GET /v1/models` | **200** | 200 |
+| `POST /api/chat` | **401** `{"error":"Unauthorized"}` | **200** — the only call that separates the two columns |
+| `GET /api/ps` | **401** | **401** — not an auth probe; rule 10 |
 
 ### TLS
 

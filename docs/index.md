@@ -2,7 +2,7 @@
 id: index
 type: reference
 status: active
-updated: 2026-08-03
+updated: 2026-08-05
 links: []
 ---
 
@@ -26,6 +26,7 @@ Twenty-five nodes is past the point where the graph needs one. Start from the qu
 | I am touching a screen | [[analytics-page]], [[report-page]], [[settings-schema]] |
 | How does the app reach an LLM, and where is the API key? | [[ollama-flow]] |
 | How does a transaction get a category? | [[expense-categories]] |
+| How does a period get an AI read? | [[analytics-insights]] |
 | I am touching a chart or a tile | [[summary-tile-delta]], [[chart-outlier]], [[filter-row]] |
 | Why does this dialog / confirm not work? | [[webview-dialogs]] |
 | Money moving between own accounts | [[self-transfer]] |

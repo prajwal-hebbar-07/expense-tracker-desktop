@@ -2,8 +2,8 @@
 id: analytics-page
 type: decision
 status: active
-updated: 2026-08-01
-links: [summary-tile-delta, filter-row, chart-outlier, design-tokens, derived-balances, transaction-ledger]
+updated: 2026-08-05
+links: [summary-tile-delta, filter-row, chart-outlier, design-tokens, derived-balances, transaction-ledger, analytics-insights]
 ---
 
 # The Analytics screen
@@ -24,6 +24,7 @@ Charts are **CSS boxes, not SVG and not a charting library**: a bar is a `div` w
 8. **Keep every window derivation in `analyticsFeed.ts`**, not in the component, so `analytics.check.ts` can assert it. Month and year boundaries are where off-by-one errors hide.
 9. **Keep the colour count at one wherever labels carry identity.** "Where it went" and "Top sources" are ranked bars with the name on every row — a hue per category encodes nothing that the text does not.
 10. **Only `--accent` and `--series-b` may encode a series, and only together.** That pair was validated for lightness band, chroma, colour-vision separation and 3:1 contrast on both surfaces. **Blue and violet fail** (ΔE 5.7 under protanopia) — never use `--violet` as a second series colour; it is an icon tint only.
+11. **Anything a model writes about this page is a separate card, on a button, and never a figure.** The tiles and charts stay derived from the feed — see [[analytics-insights]].
 ## Contract
 
 `apps/desktop/src/analyticsFeed.ts`:

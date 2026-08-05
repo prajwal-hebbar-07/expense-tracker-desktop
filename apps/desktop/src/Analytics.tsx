@@ -1,17 +1,21 @@
 import { useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { CLOUD_URL, getSettings } from "./db";
 import { at } from "./day";
 import { formatAmount, formatAmountRound } from "./money";
-import { card, errorBox, h1, h2, lede, pageWide } from "./ui";
+import { button, card, errorBox, h1, h2, lede, pageWide } from "./ui";
 import Stat from "./Stat";
 import { change } from "./delta";
 import PeriodPicker, { usePeriod } from "./PeriodPicker";
 import { ArrowRight, Calendar, TrendUp, Wallet } from "./icons";
+import { Report, buildInsightsPrompt, parseInsights } from "./insights";
 import {
   Bucket,
   FEED,
   Slice,
   biggest,
   buckets,
+  daysBetween,
   rank,
   splitFixed,
   totals,
@@ -266,12 +270,73 @@ export default function Analytics() {
   // tile has 177px for a figure and a comparison both.
   const vs = prev.label.replace(` ${win.from.slice(0, 4)}`, "");
 
+  /** The analysis, stamped with the window it was generated for — a stamp
+   *  rather than a `useEffect` that clears it, because both jobs are the same
+   *  comparison: an analysis of July sitting above August's charts is a
+   *  confident lie, and so is one from a run that lands after the user has
+   *  stepped away from the period it read. */
+  const [ai, setAi] = useState<{
+    window: string;
+    model?: string;
+    report?: Report;
+    error?: string;
+  } | null>(null);
+  const [analysing, setAnalysing] = useState(false);
+  const winKey = `${win.from}|${win.to}`;
+  const shown = ai?.window === winKey ? ai : null;
+
+  /** Sends this window's figures — the same aggregates the charts below are
+   *  drawn from, never the transactions — to the configured model.
+   *
+   *  On the button and nowhere else: not on mount, not on a period change, not
+   *  on a timer. A run spends tokens on a paid subscription, and a page that
+   *  analysed itself would spend them on every visit and every stepper click.
+   *  The rest of the page is complete without ever pressing it. */
+  function explain() {
+    setAi(null);
+    setAnalysing(true);
+    (async () => {
+      const settings = await getSettings();
+      if (!settings.model) {
+        throw new Error("Pick an AI model in Settings before generating an analysis.");
+      }
+      const reply = await invoke<string>("ollama_json", {
+        baseUrl: settings.base_url || CLOUD_URL,
+        model: settings.model,
+        prompt: buildInsightsPrompt({
+          win,
+          vs,
+          days: daysBetween(win.from, win.to),
+          now,
+          before,
+          categories: byCategory,
+          sources: bySource,
+          onAccounts,
+          onCards,
+          fixed,
+          biggest: biggest(rows),
+        }),
+      });
+      setAi({ window: winKey, model: settings.model, report: parseInsights(reply) });
+    })()
+      .catch((e) => setAi({ window: winKey, error: String(e) }))
+      .finally(() => setAnalysing(false));
+  }
+
   return (
     <div className={pageWide}>
-      <h1 className={h1}>Analytics</h1>
-      <p className={lede}>
-        Sample data — this page reads a consolidated feed, not the ledger.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className={h1}>Analytics</h1>
+          <p className={lede}>
+            Sample data — this page reads a consolidated feed, not the ledger.
+          </p>
+        </div>
+        {/* On demand, never on mount or on a period change: it spends tokens. */}
+        <button className={button} onClick={explain} disabled={analysing || invalid}>
+          {analysing ? "Analysing…" : "Explain with AI"}
+        </button>
+      </div>
 
       <PeriodPicker
         controls={controls}
@@ -318,6 +383,53 @@ export default function Analytics() {
               tint="muted"
             />
           </div>
+
+          {/* Absent until the button is pressed, and gone again the moment the
+              period moves — see the stamp on `ai`. */}
+          {(analysing || shown) && (
+            <section className={`mt-5 ${card}`}>
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className={h2}>AI analysis</h2>
+                {shown?.model && (
+                  <p className="shrink-0 font-mono text-[11px] text-muted">{shown.model}</p>
+                )}
+              </div>
+
+              {analysing && (
+                <p className="mt-3 text-[13.5px] text-muted">Reading {win.label}…</p>
+              )}
+
+              {shown?.error && (
+                <p role="alert" className={errorBox}>
+                  {shown.error}
+                </p>
+              )}
+
+              {shown?.report && (
+                <>
+                  {shown.report.summary && (
+                    <p className="mt-3 text-[13.5px] leading-relaxed">{shown.report.summary}</p>
+                  )}
+                  <ul className="mt-1 divide-y divide-line">
+                    {shown.report.insights.map((i, n) => (
+                      <li key={n} className="py-2.5">
+                        <p className="text-[13.5px] font-medium">{i.title}</p>
+                        {i.detail && (
+                          <p className="mt-0.5 text-[12.5px] leading-relaxed text-muted">
+                            {i.detail}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-3 text-[11.5px] text-muted">
+                    Written by a language model from the figures on this page. Check anything
+                    surprising against the charts below.
+                  </p>
+                </>
+              )}
+            </section>
+          )}
 
           <section className={`mt-5 ${card}`}>
             <div className="flex items-baseline justify-between gap-3">
