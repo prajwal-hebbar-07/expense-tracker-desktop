@@ -3,7 +3,7 @@ id: expense-categories
 type: decision
 status: active
 updated: 2026-08-05
-links: [ollama-flow, transaction-ledger, analytics-page, persistence-sqlite, analytics-real-feed, ollama-key-in-settings]
+links: [ollama-flow, transaction-ledger, analytics-page, persistence-sqlite, analytics-real-feed, ollama-accounts]
 ---
 
 # Categorising expenses
@@ -52,7 +52,7 @@ Income, Other
 
 ### Command
 
-`ollama_json(base_url, model, prompt, api_key) -> String` — `/api/chat` with `format: "json"`, 120s. Same host and error sentences as `ollama_check`; both are thin wrappers over one private `chat()` in `lib.rs`, and both are handed the key by the caller as `apiKey: settings.api_key ?? ""` ([[ollama-key-in-settings]]). `format: "json"` constrains the output to valid JSON, **not** to a schema — rule 2 still applies.
+`ollama_json(base_url, model, prompt, api_key) -> String` — `/api/chat` with `format: "json"`, 120s. Same host and error sentences as `ollama_check`; both are thin wrappers over one private `chat()` in `lib.rs`, and `getOllamaConfig()` supplies the selected account's key as `apiKey: config.api_key` ([[ollama-accounts]]). `format: "json"` constrains the output to valid JSON, **not** to a schema — rule 2 still applies.
 
 ### Prompt and reply
 

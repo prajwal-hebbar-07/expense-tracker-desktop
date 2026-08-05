@@ -7,7 +7,7 @@ import PeriodPicker, { usePeriod } from "./PeriodPicker";
 import { totals, within } from "./analyticsFeed";
 import { Severity, buildFacts, buildReport } from "./report";
 import { Written, buildReportPrompt, parseWrittenReport } from "./reportAi";
-import { CLOUD_URL, getSettings, loadReport, saveReport } from "./db";
+import { getOllamaConfig, loadReport, saveReport } from "./db";
 import { formatDay } from "./day";
 
 const TONE: Record<Severity, { ring: string; text: string; icon: typeof Alert }> = {
@@ -126,15 +126,15 @@ export default function Reports() {
     setAi(null);
     setGenerating(true);
     (async () => {
-      const settings = await getSettings();
+      const settings = await getOllamaConfig();
       if (!settings.model) {
         throw new Error("Pick an AI model in Settings before generating a report.");
       }
       const facts = buildFacts(rows, win, within(feed, prev));
       const reply = await invoke<string>("ollama_json", {
-        baseUrl: settings.base_url || CLOUD_URL,
+        baseUrl: settings.base_url,
         model: settings.model,
-        apiKey: settings.api_key ?? "",
+        apiKey: settings.api_key,
         prompt: buildReportPrompt(facts),
       });
       // Parsed before it is written: a malformed reply must leave the previous

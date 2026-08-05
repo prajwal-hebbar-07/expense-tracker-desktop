@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { CLOUD_URL, getSettings, loadAnalysis, saveAnalysis } from "./db";
+import { getOllamaConfig, loadAnalysis, saveAnalysis } from "./db";
 import { at, formatDay } from "./day";
 import { formatAmount, formatAmountRound } from "./money";
 import { button, card, errorBox, h1, h2, lede, pageWide } from "./ui";
@@ -330,14 +330,14 @@ export default function Analytics() {
     setAi(null);
     setAnalysing(true);
     (async () => {
-      const settings = await getSettings();
+      const settings = await getOllamaConfig();
       if (!settings.model) {
         throw new Error("Pick an AI model in Settings before generating an analysis.");
       }
       const reply = await invoke<string>("ollama_json", {
-        baseUrl: settings.base_url || CLOUD_URL,
+        baseUrl: settings.base_url,
         model: settings.model,
-        apiKey: settings.api_key ?? "",
+        apiKey: settings.api_key,
         prompt: buildInsightsPrompt({
           win,
           vs,

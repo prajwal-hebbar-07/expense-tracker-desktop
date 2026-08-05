@@ -3,7 +3,7 @@ id: analytics-insights
 type: decision
 status: active
 updated: 2026-08-05
-links: [analytics-page, ollama-flow, expense-categories, summary-tile-delta, analysis-persistence, ollama-key-in-settings]
+links: [analytics-page, ollama-flow, expense-categories, summary-tile-delta, analysis-persistence, ollama-accounts]
 ---
 
 # The AI analysis on Analytics
@@ -56,7 +56,7 @@ Amounts are rendered with `formatAmountRound` — rounded rupees, matching rule 
 
 ### Command
 
-`ollama_json(base_url, model, prompt, api_key) -> String` — one call per press, no batching. Same host and error sentences as the rest of [[ollama-flow]]; the key is the `settings` row `api_key`, passed in by the caller as `apiKey: settings.api_key ?? ""` ([[ollama-key-in-settings]]). `format: "json"` constrains the reply to valid JSON, **not** to this schema, which is why rule 6 exists.
+`ollama_json(base_url, model, prompt, api_key) -> String` — one call per press, no batching. Same host and error sentences as the rest of [[ollama-flow]]; `getOllamaConfig()` supplies the selected account's key and the caller passes it as `apiKey: config.api_key` ([[ollama-accounts]]). `format: "json"` constrains the reply to valid JSON, **not** to this schema, which is why rule 6 exists.
 
 ## Anti-patterns
 

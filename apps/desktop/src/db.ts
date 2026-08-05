@@ -15,24 +15,71 @@ import type { Written } from "./reportAi";
 // means "database is locked". Opening it is also what runs pending migrations.
 export const db = Database.load("sqlite:expenses.db");
 
-// The `settings` key/value table from migration 1. One row per key, never a
-// JSON blob in a `value` — see docs/persistence-sqlite.md. Accounts and cards
-// are entity lists with their own tables and do not belong in here.
-//
+// Scalar AI configuration stays in `settings`. API credentials are a list, so
+// migration 9 moved them into `ollama_account` instead of encoding JSON here.
 // These live in db.ts rather than a settings.ts because that filename collides
 // with Settings.tsx on a case-insensitive filesystem, which tsc rejects.
 
 /** The default `base_url`: ollama.com. A local daemon is `http://localhost:11434`
- *  and needs no key. Lives here rather than in OllamaSettings.tsx because every
- *  screen that calls a model has to fall back to the same value. */
+ *  and needs no key. Every caller falls back to the same value here. */
 export const CLOUD_URL = "https://ollama.com";
 
-/** Every row, as an object. There are three keys; paging this is not a concern. */
-export async function getSettings(): Promise<Record<string, string>> {
-  const rows = await (await db).select<{ key: string; value: string }[]>(
-    "SELECT key, value FROM settings",
+export type OllamaAccount = {
+  id: number;
+  name: string;
+  api_key: string;
+  active: 0 | 1;
+};
+
+export type OllamaConfig = {
+  base_url: string;
+  model: string;
+  api_key: string;
+};
+
+/** The exact configuration every model call should use. No active account is a
+ *  valid no-key configuration for a local daemon. */
+export async function getOllamaConfig(): Promise<OllamaConfig> {
+  const rows = await (await db).select<OllamaConfig[]>(`
+    SELECT
+      COALESCE((SELECT value FROM settings WHERE key = 'base_url'), '${CLOUD_URL}') AS base_url,
+      COALESCE((SELECT value FROM settings WHERE key = 'model'), '') AS model,
+      COALESCE((SELECT api_key FROM ollama_account WHERE active = 1), '') AS api_key
+  `);
+  return rows[0];
+}
+
+export async function getOllamaAccounts(): Promise<OllamaAccount[]> {
+  return (await db).select<OllamaAccount[]>(
+    "SELECT id, name, api_key, active FROM ollama_account ORDER BY active DESC, name COLLATE NOCASE",
   );
-  return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+}
+
+/** Clear first so the partial unique index is never transiently violated when
+ *  switching from a newer row to an older one. `null` deliberately selects no
+ *  key for a local daemon. */
+export async function setActiveOllamaAccount(id: number | null) {
+  const conn = await db;
+  await conn.execute("UPDATE ollama_account SET active = 0 WHERE active = 1");
+  if (id !== null) await conn.execute("UPDATE ollama_account SET active = 1 WHERE id = $1", [id]);
+}
+
+export async function addOllamaAccount(name: string, apiKey: string): Promise<OllamaAccount> {
+  const result = await (await db).execute(
+    "INSERT INTO ollama_account (name, api_key) VALUES ($1, $2)",
+    [name, apiKey],
+  );
+  if (result.lastInsertId === undefined) throw new Error("The API key was saved without an id.");
+  await setActiveOllamaAccount(result.lastInsertId);
+  return { id: result.lastInsertId, name, api_key: apiKey, active: 1 };
+}
+
+export async function updateOllamaAccountKey(id: number, apiKey: string) {
+  await (await db).execute("UPDATE ollama_account SET api_key = $1 WHERE id = $2", [apiKey, id]);
+}
+
+export async function deleteOllamaAccount(id: number) {
+  await (await db).execute("DELETE FROM ollama_account WHERE id = $1", [id]);
 }
 
 /** Insert or overwrite. `key` is a literal from the caller, `value` is bound. */

@@ -23,16 +23,16 @@ import {
 } from "./src/queries.ts";
 
 /** The migration bodies out of lib.rs, so a schema change here cannot drift. */
-function schema(): string {
+function migrations(): string[] {
   const rust = readFileSync(new URL("./src-tauri/src/lib.rs", import.meta.url), "utf8");
   const sql = [...rust.matchAll(/sql: "([\s\S]*?)",\n\s*kind:/g)].map((m) => m[1]);
-  assert.equal(sql.length, 8, "expected 8 migrations in lib.rs");
-  return sql.join("\n");
+  assert.equal(sql.length, 9, "expected 9 migrations in lib.rs");
+  return sql;
 }
 
 function seed() {
   const db = new DatabaseSync(":memory:");
-  db.exec(schema());
+  db.exec(migrations().join("\n"));
   db.exec("INSERT INTO account (bank, balance) VALUES ('HDFC', 100000)"); // ₹1000
   db.exec("INSERT INTO account (bank, balance) VALUES ('ICICI', 50000)"); // ₹500
   db.exec("INSERT INTO card (bank, name, last4) VALUES ('HDFC', 'Regalia', '0421')");
@@ -313,4 +313,46 @@ test("a transfer credits the destination and debits the source, once each", () =
   transfer(db, 10000);
   transfer(db, 10000);
   assert.deepEqual(balances(db), { HDFC: 80000, ICICI: 70000 });
+});
+
+test("migration 9 preserves the existing Ollama key as the active account", () => {
+  const db = new DatabaseSync(":memory:");
+  const sql = migrations();
+  db.exec(sql.slice(0, 8).join("\n"));
+  db.exec("INSERT INTO settings (key, value) VALUES ('api_key', 'legacy-key')");
+  db.exec(sql[8]);
+
+  assert.deepEqual(
+    { ...db.prepare("SELECT name, api_key, active FROM ollama_account").get() },
+    { name: "Default", api_key: "legacy-key", active: 1 },
+  );
+  assert.equal(
+    db.prepare("SELECT value FROM settings WHERE key = 'api_key'").get(),
+    undefined,
+  );
+});
+
+test("Ollama accounts hold multiple keys but allow only one active key", () => {
+  const db = new DatabaseSync(":memory:");
+  db.exec(migrations().join("\n"));
+  db.exec(`
+    INSERT INTO ollama_account (name, api_key, active) VALUES ('Personal', 'key-one', 1);
+    INSERT INTO ollama_account (name, api_key) VALUES ('Work', 'key-two');
+  `);
+
+  assert.throws(
+    () =>
+      db.exec(
+        "INSERT INTO ollama_account (name, api_key, active) VALUES ('Other', 'key-three', 1)",
+      ),
+    /UNIQUE/,
+  );
+  db.exec(`
+    UPDATE ollama_account SET active = 0 WHERE active = 1;
+    UPDATE ollama_account SET active = 1 WHERE name = 'Work';
+  `);
+  assert.equal(
+    db.prepare("SELECT api_key FROM ollama_account WHERE active = 1").get()!.api_key,
+    "key-two",
+  );
 });

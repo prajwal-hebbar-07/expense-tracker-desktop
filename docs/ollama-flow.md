@@ -3,19 +3,19 @@ id: ollama-flow
 type: decision
 status: active
 updated: 2026-08-05
-links: [stack, persistence-sqlite, settings-schema, linux-release, expense-categories, analytics-insights, ollama-key-in-settings, ollama-key-keychain]
+links: [stack, persistence-sqlite, settings-schema, linux-release, expense-categories, analytics-insights, ollama-accounts, ollama-key-in-settings, ollama-key-keychain]
 ---
 
 # Reaching Ollama
 
-The app talks to **Ollama Cloud (`https://ollama.com`) by default**, with a Bearer key from the user's paid subscription, and to a local daemon (`http://localhost:11434`, no key) by typing that URL into the same field. There is no cloud/local mode switch: the two differ only by a `base_url` value and whether a key is present. Going direct to the cloud drops the requirement that Ollama.app be installed and running; the cost is one real secret to manage, and where that secret is kept — a plaintext `settings` row since 2026-08-05 — is [[ollama-key-in-settings]], with the credential store it replaced in [[ollama-key-keychain]].
+The app talks to **Ollama Cloud (`https://ollama.com`) by default**, with a Bearer key from the selected named account, and to a local daemon (`http://localhost:11434`, no key) by typing that URL into the same field. There is no cloud/local mode switch: the two differ only by `base_url` and whether an `ollama_account` row is active. Key storage and selection are [[ollama-accounts]]; the credential-store and singleton designs it replaced remain in [[ollama-key-keychain]] and [[ollama-key-in-settings]].
 
-The Settings screen (`apps/desktop/src/OllamaSettings.tsx`) is the only UI: a server field, a write-only key field, **Connect**, a model dropdown, and **Test**. Connect saves and lists models; choosing a model then fires a real one-word completion and quotes the reply back, which is the only thing that can prove a key. Configured 2026-08-03. This node covers configuration and the transport; key storage is [[ollama-key-in-settings]] and the features that spend the model are [[expense-categories]] and [[analytics-insights]].
+The Settings screen (`apps/desktop/src/OllamaSettings.tsx`) is the only UI: server and account selectors, a masked key with Show/Change/Remove actions, an add-key form, **Connect**, a model dropdown, and **Test**. Connect lists models; choosing a model fires a real one-word completion and quotes the reply back, which is the only thing that can prove the selected key. This node covers transport; account persistence is [[ollama-accounts]] and the features that spend the model are [[expense-categories]] and [[analytics-insights]].
 
 ## Rules for an agent working here
 
-1. **The API key is the `settings` row `api_key`, and every command is handed it by its caller** — `apiKey: settings.api_key ?? ""`. Rust stores nothing and can fetch nothing, so a command that goes looking for a key on its own is the deleted design coming back. Three settings rows now: `base_url`, `model`, `api_key`; see [[persistence-sqlite]], and [[ollama-key-in-settings]] for the threat model that was accepted when the key left the Keychain.
-2. **The key field stays write-only in the UI.** Blank means "keep what is stored", and the Remove button — which writes `''` — is the only way to clear it. The value is readable now, but rendering a live credential buys the user nothing and costs a shoulder, a screenshare, or a screenshot in a bug report.
+1. **Every caller gets `{ base_url, model, api_key }` from `getOllamaConfig()` and hands `api_key` to the command as `apiKey`.** The helper resolves the active `ollama_account`; Rust stores nothing and can fetch nothing, so a command that looks for a key on its own is the deleted design coming back.
+2. **Mask the saved key until the user presses Show.** Selection, edit, add, and removal hide it again; rendering it unmasked by default makes screenshots and screenshares disclose a bearer token.
 3. **Make the HTTP call from Rust with `reqwest`, never `fetch` in the WebView and never `tauri-plugin-http`** — rule 2 of [[stack]]. That plugin exists specifically to give the *webview* a `fetch`, which is the thing being avoided. Going through Rust also means CORS and `OLLAMA_ORIGINS` never come up.
 4. **Trim the trailing slash off `base_url` before joining a path.** A pasted `https://ollama.com/` otherwise becomes `https://ollama.com//api/tags`, which 404s with a message that blames the endpoint.
 5. **Send the key only to `base_url`.** It is an Ollama credential; there is no second host it belongs on.
@@ -47,13 +47,14 @@ Called from TypeScript with camelCase arguments — `invoke("ollama_json", { bas
 
 | Item | Value |
 |---|---|
-| Storage | `settings` row `api_key` in `expenses.db`, plaintext |
-| Write | `setSetting("api_key", key)`; `setSetting("api_key", "")` is Remove |
-| Read | `getSettings()`; `!!settings.api_key` is the has-a-key test |
-| Callers | `OllamaSettings.tsx`, `Transactions.tsx` (`categorise()`), `Analytics.tsx` (`explain()`), each passing `apiKey: settings.api_key ?? ""` |
-| Migration | none — `settings` is key/value, so a new key is not a schema change |
+| Storage | Named rows in `ollama_account` in `expenses.db`, plaintext |
+| Selection | The only row with `active = 1`; no active row means no key |
+| Write | `addOllamaAccount`, `updateOllamaAccountKey`, `setActiveOllamaAccount`, `deleteOllamaAccount` |
+| Read | `getOllamaConfig()` for commands; `getOllamaAccounts()` for the Settings list |
+| Callers | `OllamaSettings.tsx`, `Transactions.tsx`, `Analytics.tsx`, `Reports.tsx`, each passing `apiKey: config.api_key` |
+| Migration | 9 copies legacy `settings.api_key` to active account `Default`, then deletes the row |
 
-The reasoning, the threat model, and the rule about never running two credential stores at once are in [[ollama-key-in-settings]]. What this replaced — `keyring` 4.1.6, service `com.hebbar.desktop`, account `ollama` — is in [[ollama-key-keychain]].
+The schema, UI contract, migration, and plaintext threat-model link are in [[ollama-accounts]].
 
 ### Settings rows
 
@@ -61,9 +62,8 @@ The reasoning, the threat model, and the rule about never running two credential
 |---|---|---|
 | `base_url` | `https://ollama.com`, or `http://localhost:11434` | `https://ollama.com` |
 | `model` | A name from `/api/tags`, e.g. `gpt-oss:120b` | unset |
-| `api_key` | The raw Ollama key, plaintext. `''` means no key — see [[ollama-key-in-settings]] | unset |
 
-Read and written by `getSettings()` / `setSetting()` in `apps/desktop/src/db.ts`. They live in `db.ts` rather than a `settings.ts` because that filename collides with `Settings.tsx` on a case-insensitive filesystem and `tsc` rejects the program outright.
+These scalar values are written by `setSetting()` in `apps/desktop/src/db.ts`; credentials are not settings rows.
 
 ### Endpoint responses
 
@@ -96,11 +96,11 @@ Errors carry `{"error":"Unauthorized"}`, which `check_status()` replaces with an
 
 ## Anti-patterns
 
-- **A command, helper, or `#[tauri::command]` that reads the key in Rust.** There is no way to — Rust has no database handle for `settings` and no credential store — so this shows up as a reintroduced `keyring` dependency or a new SQL read. Rule 1.
-- **`invoke("ollama_json", { baseUrl, model, prompt })` with no `apiKey`.** It compiles and it lists models fine; it 401s on the first completion. Rule 1.
-- **Rendering the stored key in the Settings input** because it is readable now: `value={settings.api_key}`. Rule 2.
+- **A command, helper, or `#[tauri::command]` that reads the key in Rust.** Rust has no credential store or database handle here; TypeScript passes the active key. Rule 1.
+- **`invoke("ollama_json", { baseUrl, model, prompt })` with no `apiKey`.** It compiles and lists models, then 401s on the first completion. Rule 1.
+- **Rendering a saved key unmasked before Show is pressed.** Rule 2.
 - **`fetch("https://ollama.com/api/tags")` in a `.tsx` file.** Rule 3, and it hands the key to a `fetch` the page can also make to any other host.
-- **A cloud/local toggle, or separate `cloud_url` and `local_url` rows.** One `base_url` already expresses both.
+- **A cloud/local toggle, or separate `cloud_url` and `local_url` rows.** One `base_url` and the no-active-account state already express both.
 - **Persisting the model list.** It is a remote catalogue; caching it means showing models the account no longer has.
 - **Telling the user "Connected" after `ollama_models` succeeds.** Rule 7 — it succeeds with no key at all.
 - **Building a `reqwest::Client` outside `ollama_request()`.** The new path loses the key and the TLS provider; the latter panics at runtime, the former just 401s.
@@ -115,7 +115,7 @@ Errors carry `{"error":"Unauthorized"}`, which `check_status()` replaces with an
 | Test errors with a JSON parse failure | `stream: false` was dropped from the request body | Rule 9 |
 | Connect hangs ~15s then errors | Wrong host, or a local daemon that is not running | `curl $base_url/api/tags`; for local, start Ollama.app |
 | `No rustls crypto provider is configured` (panic) | The `Once` was removed, or a new call path builds a `reqwest::Client` without it | Install the provider on that path too |
-| The model calls 401 while Settings shows a key is saved | A caller forgot to pass `apiKey`, so the request carries no `Authorization` header | Rule 1; add `apiKey: settings.api_key ?? ""` to that `invoke` |
+| Model calls use the wrong saved account | A caller bypassed `getOllamaConfig()` or read the first account row | Rule 1; use the active key returned by the helper |
 | The key is gone after a rebuild or reinstall | `identifier` in `tauri.conf.json` changed, moving `expenses.db` | Restore the identifier — [[stack]] rule 7; the old database is still on disk |
 | The saved model is missing from the dropdown | The account or daemon no longer serves it | Connect clears it and says so — pick another |
 

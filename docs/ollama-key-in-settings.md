@@ -1,16 +1,19 @@
 ---
 id: ollama-key-in-settings
 type: decision
-status: active
+status: superseded
+superseded-by: ollama-accounts
 updated: 2026-08-05
-links: [ollama-flow, ollama-key-keychain, persistence-sqlite, settings-schema, stack]
+links: [ollama-accounts, ollama-flow, ollama-key-keychain, persistence-sqlite, settings-schema, stack]
 ---
 
-# The Ollama API key lives in the `settings` table
+# Superseded: the Ollama API key as one `settings` row
 
 The key is a row in the `settings` key/value table of `expenses.db`, under the key `api_key`, next to `base_url` and `model`. It is stored in plaintext. It used to live in the OS credential store — Keychain on macOS, Secret Service on Linux — and that decision, with everything it bought, is kept in [[ollama-key-keychain]]. It was moved on 2026-08-05 for one reason: macOS binds a Keychain item's ACL to the exact binary that created it, and every `pnpm tauri dev` rebuild produces a new binary, so the authorization dialog came back on every rebuild and, until it was answered, on every model call. "Always Allow" only holds until the next rebuild. Development was the whole cost centre and the app was paying it several times an hour.
 
 The trade was made knowingly: the key is now readable by any process running as the user, and that is judged cheaper than a prompt loop. The threat model section below says exactly what is being given up. This node owns *where the key lives and why*; the transport, the endpoints and the "listing models proves nothing" rule are [[ollama-flow]].
+
+It was replaced by [[ollama-accounts]] on 2026-08-05 when the UI gained named keys and an active-account selector. The plaintext-database threat model below still applies; the singleton storage and write-only UI contracts do not.
 
 ## Rules for an agent working here
 

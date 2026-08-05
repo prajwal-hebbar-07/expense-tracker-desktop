@@ -3,7 +3,7 @@ id: report-ai
 type: decision
 status: active
 updated: 2026-08-05
-links: [report-page, analysis-persistence, analytics-insights, ollama-flow, ollama-key-in-settings, expense-categories]
+links: [report-page, analysis-persistence, analytics-insights, ollama-flow, ollama-accounts, expense-categories]
 ---
 
 # The written report
@@ -67,7 +67,7 @@ Amounts are paise. The prompt renders them with `formatAmount`/`formatAmountRoun
 
 ### Command
 
-`ollama_json(base_url, model, prompt, api_key) -> String` — one call per press, no batching. Same host and error sentences as the rest of [[ollama-flow]]; the key is the `settings` row `api_key`, passed as `apiKey: settings.api_key ?? ""` ([[ollama-key-in-settings]]). `format: "json"` constrains the reply to valid JSON, **not** to this schema, which is why rules 4–6 exist.
+`ollama_json(base_url, model, prompt, api_key) -> String` — one call per press, no batching. Same host and error sentences as the rest of [[ollama-flow]]; `getOllamaConfig()` supplies the selected account's key and the caller passes it as `apiKey: config.api_key` ([[ollama-accounts]]). `format: "json"` constrains the reply to valid JSON, **not** to this schema, which is why rules 4–6 exist.
 
 ### Migration 8, `create_report_table` — `apps/desktop/src-tauri/src/lib.rs`
 

@@ -170,14 +170,44 @@ fn migrations() -> Vec<Migration> {
         ",
             kind: MigrationKind::Up,
         },
+        // Ollama credentials are an entity list now that one installation can
+        // hold more than one account. Exactly one row may be active; no active
+        // row is the valid local-daemon configuration.
+        //
+        // Move the former singleton setting in the same migration so an
+        // existing installation keeps working without asking for the key again.
+        Migration {
+            version: 9,
+            description: "create_ollama_account_table",
+            sql: "
+            CREATE TABLE ollama_account (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              name       TEXT    NOT NULL COLLATE NOCASE UNIQUE
+                                 CHECK (length(trim(name)) > 0),
+              api_key    TEXT    NOT NULL CHECK (length(trim(api_key)) > 0),
+              active     INTEGER NOT NULL DEFAULT 0 CHECK (active IN (0, 1)),
+              created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+            );
+
+            CREATE UNIQUE INDEX idx_ollama_account_active
+              ON ollama_account (active) WHERE active = 1;
+
+            INSERT INTO ollama_account (name, api_key, active)
+              SELECT 'Default', value, 1
+              FROM settings
+              WHERE key = 'api_key' AND length(trim(value)) > 0;
+            DELETE FROM settings WHERE key = 'api_key';
+        ",
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
 // ---------------------------------------------------------------------------
 // Ollama
 //
-// The API key is a `settings` row in `expenses.db`, passed in by the caller on
-// every command — this side stores nothing. It used to live in the OS
+// API keys live in `ollama_account`; the active row is passed in by the caller
+// on every command. This side stores nothing. They used to live in the OS
 // credential store; macOS binds a keychain item's ACL to the exact binary that
 // created it, so every rebuild brought the authorization dialog back. See
 // docs/ollama-key-in-settings.md, and docs/ollama-key-keychain.md for what was

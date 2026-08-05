@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { CLOUD_URL, db, getSettings } from "./db";
+import { db, getOllamaConfig } from "./db";
 import { fromMinor, formatAmount } from "./money";
 import {
   button,
@@ -245,12 +245,12 @@ export default function Transactions() {
     setBusy(`Categorising 0 of ${todo.length}…`);
     (async () => {
       try {
-        const settings = await getSettings();
+        const settings = await getOllamaConfig();
         if (!settings.model) {
           throw new Error("Pick an AI model in Settings before categorising.");
         }
-        const baseUrl = settings.base_url || CLOUD_URL;
-        const apiKey = settings.api_key ?? "";
+        const baseUrl = settings.base_url;
+        const apiKey = settings.api_key;
         const conn = await db;
 
         let done = 0;
