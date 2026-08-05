@@ -2,13 +2,13 @@
 id: settings-schema
 type: decision
 status: active
-updated: 2026-08-03
-links: [persistence-sqlite, stack, derived-balances, transaction-ledger, ollama-flow]
+updated: 2026-08-05
+links: [persistence-sqlite, stack, derived-balances, transaction-ledger, ollama-flow, ollama-key-in-settings]
 ---
 
 # Accounts and cards schema
 
-The Settings screen records which bank each account is in and its current balance, plus which credit cards the user holds. These are **entity lists, not settings rows** — they live in their own `account` and `card` tables, added by migration 2. The `settings` key/value table stays reserved for the two Ollama rows described in [[persistence-sqlite]]; putting an account in it would mean encoding a list into a single `value` string.
+The Settings screen records which bank each account is in and its current balance, plus which credit cards the user holds. These are **entity lists, not settings rows** — they live in their own `account` and `card` tables, added by migration 2. The `settings` key/value table stays reserved for the three Ollama rows described in [[persistence-sqlite]] (`base_url`, `model`, `api_key` — see [[ollama-key-in-settings]]); putting an account in it would mean encoding a list into a single `value` string.
 
 The screen also renders `OllamaSettings`, which configures the AI backend. That section owns none of the tables here — see [[ollama-flow]].
 

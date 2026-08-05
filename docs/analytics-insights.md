@@ -3,7 +3,7 @@ id: analytics-insights
 type: decision
 status: active
 updated: 2026-08-05
-links: [analytics-page, ollama-flow, expense-categories, summary-tile-delta, analysis-persistence]
+links: [analytics-page, ollama-flow, expense-categories, summary-tile-delta, analysis-persistence, ollama-key-in-settings]
 ---
 
 # The AI analysis on Analytics
@@ -56,7 +56,7 @@ Amounts are rendered with `formatAmountRound` — rounded rupees, matching rule 
 
 ### Command
 
-`ollama_json(base_url, model, prompt) -> String` — one call per press, no batching. Same key, host and error sentences as the rest of [[ollama-flow]]; `format: "json"` constrains the reply to valid JSON, **not** to this schema, which is why rule 6 exists.
+`ollama_json(base_url, model, prompt, api_key) -> String` — one call per press, no batching. Same host and error sentences as the rest of [[ollama-flow]]; the key is the `settings` row `api_key`, passed in by the caller as `apiKey: settings.api_key ?? ""` ([[ollama-key-in-settings]]). `format: "json"` constrains the reply to valid JSON, **not** to this schema, which is why rule 6 exists.
 
 ## Anti-patterns
 
@@ -72,7 +72,7 @@ Amounts are rendered with `formatAmountRound` — rounded rupees, matching rule 
 | Symptom | Cause | Action |
 |---|---|---|
 | `Pick an AI model in Settings before generating an analysis.` | No `model` settings row | Settings → AI model → Connect, pick a model |
-| `API key rejected…` | [[ollama-flow]] rule 9 — listing models never proved the key | Paste a fresh key and press Test |
+| `API key rejected…` | [[ollama-flow]] rule 7 — listing models never proved the key | Paste a fresh key and press Test |
 | `Model did not answer with JSON` | The model ignored `format: "json"` — small models do | Pick a larger model; nothing was written, press the button again |
 | `Model answered with no analysis` | Valid JSON, empty summary and no usable bullet | Same — a larger model, or press again |
 | The card vanished on its own | The period moved | Rule 3, working as intended; press the button again for the new window |

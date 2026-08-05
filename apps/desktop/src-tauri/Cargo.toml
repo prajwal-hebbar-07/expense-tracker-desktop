@@ -34,10 +34,6 @@ tauri-plugin-process = "2"
 # The provider is installed from `ring` in lib.rs instead — see the Once there.
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls-no-provider"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
-# The API key store. Windows and the (pure-Rust, zbus) Secret Service backends
-# are on by default; only Apple's has to be asked for. Nothing here needs an
-# apt package, so docs/linux-release.md's install list is unchanged.
-keyring = { version = "4.1.6", features = ["apple-native-keyring-store"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"

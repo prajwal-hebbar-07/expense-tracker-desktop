@@ -3,7 +3,7 @@ id: expense-categories
 type: decision
 status: active
 updated: 2026-08-05
-links: [ollama-flow, transaction-ledger, analytics-page, persistence-sqlite, analytics-real-feed]
+links: [ollama-flow, transaction-ledger, analytics-page, persistence-sqlite, analytics-real-feed, ollama-key-in-settings]
 ---
 
 # Categorising expenses
@@ -52,7 +52,7 @@ Income, Other
 
 ### Command
 
-`ollama_json(base_url, model, prompt) -> String` — `/api/chat` with `format: "json"`, 120s. Same key, host and error sentences as `ollama_check`; both are thin wrappers over one private `chat()` in `lib.rs`. `format: "json"` constrains the output to valid JSON, **not** to a schema — rule 2 still applies.
+`ollama_json(base_url, model, prompt, api_key) -> String` — `/api/chat` with `format: "json"`, 120s. Same host and error sentences as `ollama_check`; both are thin wrappers over one private `chat()` in `lib.rs`, and both are handed the key by the caller as `apiKey: settings.api_key ?? ""` ([[ollama-key-in-settings]]). `format: "json"` constrains the output to valid JSON, **not** to a schema — rule 2 still applies.
 
 ### Prompt and reply
 
@@ -78,7 +78,7 @@ One line per transaction, `id: title (note) [money out]`, then the closed list a
 | Symptom | Cause | Action |
 |---|---|---|
 | `Pick an AI model in Settings before categorising.` | No `model` settings row | Settings → AI model → Connect, pick a model |
-| `API key rejected…` | [[ollama-flow]] rule 9 — the key was never proven by listing models | Paste a fresh key and press Test |
+| `API key rejected…` | [[ollama-flow]] rule 7 — the key was never proven by listing models | Paste a fresh key and press Test |
 | `Model did not answer with JSON` | The model ignored `format: "json"` — small models do | Pick a larger model; the run wrote nothing for that batch |
 | Everything lands in `Other` | The model is answering with labels outside the list | Rule 2 is working as intended; a bigger model fixes the labels |
 | The button says a number that never drops | Every remaining row is a transfer | Rule 4 — transfers are not counted; if it is not zero, check `to_account_id` |

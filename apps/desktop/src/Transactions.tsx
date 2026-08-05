@@ -250,6 +250,7 @@ export default function Transactions() {
           throw new Error("Pick an AI model in Settings before categorising.");
         }
         const baseUrl = settings.base_url || CLOUD_URL;
+        const apiKey = settings.api_key ?? "";
         const conn = await db;
 
         let done = 0;
@@ -257,6 +258,7 @@ export default function Transactions() {
           const reply = await invoke<string>("ollama_json", {
             baseUrl,
             model: settings.model,
+            apiKey,
             prompt: buildPrompt(batch),
           });
           for (const [id, category] of parseCategories(reply, batch)) {

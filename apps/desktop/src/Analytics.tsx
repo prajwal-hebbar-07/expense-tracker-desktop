@@ -337,6 +337,7 @@ export default function Analytics() {
       const reply = await invoke<string>("ollama_json", {
         baseUrl: settings.base_url || CLOUD_URL,
         model: settings.model,
+        apiKey: settings.api_key ?? "",
         prompt: buildInsightsPrompt({
           win,
           vs,

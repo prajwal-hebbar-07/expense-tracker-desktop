@@ -3,7 +3,7 @@ id: persistence-sqlite
 type: decision
 status: active
 updated: 2026-08-05
-links: [stack, repo-layout, settings-schema, transaction-ledger, derived-balances, analysis-persistence]
+links: [stack, repo-layout, settings-schema, transaction-ledger, derived-balances, analysis-persistence, ollama-key-in-settings]
 ---
 
 # Persistence: SQLite via tauri-plugin-sql
@@ -90,7 +90,7 @@ CREATE TABLE expense (
 CREATE INDEX idx_expense_spent_at ON expense (spent_at);
 ```
 
-`settings` is a separate key/value table (`key TEXT PRIMARY KEY`, `value TEXT NOT NULL`) holding only `base_url` and `model`, read and written by `getSettings()` / `setSetting()` in `apps/desktop/src/db.ts`. The Ollama API key is **not** a settings row — it lives in the OS credential store (Keychain on macOS, Secret Service on Linux); see [[ollama-flow]].
+`settings` is a separate key/value table (`key TEXT PRIMARY KEY`, `value TEXT NOT NULL`) holding exactly three rows — `base_url`, `model` and `api_key` — read and written by `getSettings()` / `setSetting()` in `apps/desktop/src/db.ts`. The Ollama API key **is** a settings row, stored in plaintext since 2026-08-05; it used to live in the OS credential store and the trade that moved it is [[ollama-key-in-settings]]. `''` means no key.
 
 **Nothing else belongs in `settings`.** Despite the name, it is not where the Settings *screen* stores its data: bank accounts and credit cards are entity lists with their own `account` and `card` tables, added by migration 2. See [[settings-schema]]. A JSON array stuffed into a `value` column is the anti-pattern that node exists to prevent.
 

@@ -8,7 +8,7 @@ links: []
 
 # Map
 
-Thirty-six nodes besides this one is well past the point where the graph needs a map. Start from the question, not the top.
+Thirty-eight nodes besides this one is well past the point where the graph needs a map. Start from the question, not the top.
 
 ## Where do I start?
 
@@ -24,7 +24,7 @@ Thirty-six nodes besides this one is well past the point where the graph needs a
 | How do I build a dropdown, a menu, a popup? | [[custom-select]], [[date-picker]], [[floating-layer]] |
 | How does the layout respond to width? | [[nav-breakpoints]] |
 | I am touching a screen | [[analytics-page]], [[report-page]], [[settings-schema]] |
-| How does the app reach an LLM, and where is the API key? | [[ollama-flow]] |
+| How does the app reach an LLM, and where is the API key? | [[ollama-flow]], [[ollama-key-in-settings]] |
 | How does a transaction get a category? | [[expense-categories]] |
 | How does a period get an AI read? | [[analytics-insights]] |
 | Where do the numbers on Analytics and Report come from? | [[analytics-real-feed]] |
@@ -42,6 +42,7 @@ Kept, not deleted — the reasoning is what stops a question being re-litigated.
 - [[ledger-row-debit-red]] → [[card-movement]] + [[debit-red]]. Debits in red and cards on a blue chip. Split verdict on 2026-08-02: the blue chip lost to violet, the red debits shipped.
 - [[icon-vector-source]] → [[brand-assets]]. The icon as hand-written SVG screenshotted by Chrome, replaced by raster masters on 2026-08-02. Keeps the three constraints the SVG encoded.
 - [[analytics-mock-feed]] → [[analytics-real-feed]]. The seeded generator behind `FEED` and `TODAY`, replaced by a ledger query on 2026-08-05. Keeps why a fake feed was the right call before categorisation shipped, and the four properties any fixture still has to have.
+- [[ollama-key-keychain]] → [[ollama-key-in-settings]]. The API key in the OS credential store via `keyring`, replaced by a plaintext `settings` row on 2026-08-05. Keeps what the Keychain bought and the per-binary ACL prompt loop that killed it.
 
 ## Conventions
 

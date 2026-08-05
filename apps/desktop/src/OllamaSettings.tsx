@@ -6,11 +6,12 @@
 // Proving the key takes a real completion — that is `ollama_check`, which runs
 // automatically once a model is chosen and again on demand from Test.
 //
-// The key field is WRITE-ONLY. The key lives in the OS credential store and no
-// command hands it back (see docs/ollama-flow.md), so this screen can say
-// whether one is stored but can never show it. Leaving the field blank on an
-// already-configured app therefore means "keep the stored key", not "clear it";
-// clearing is the explicit Remove button.
+// The key is a `settings` row (`api_key`) in the app's own database, not the
+// OS keychain — see docs/ollama-key-in-settings.md for that trade and what it
+// costs. The field stays WRITE-ONLY anyway: the value is readable now, but
+// putting a live credential on screen buys nothing. Leaving the field blank on
+// an already-configured app therefore means "keep the stored key", not "clear
+// it"; clearing is the explicit Remove button, which writes ''.
 
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -33,9 +34,10 @@ import { Check, Lightbulb } from "./icons";
  *  no key, and the same two fields cover it, so there is no cloud/local switch. */
 export default function OllamaSettings() {
   const [baseUrl, setBaseUrl] = useState(CLOUD_URL);
-  /** What the user has typed now, never the stored key. */
+  /** What the user has typed now; the stored key is held separately and never
+   *  rendered into the field. */
   const [keyDraft, setKeyDraft] = useState("");
-  const [hasKey, setHasKey] = useState(false);
+  const [key, setKey] = useState("");
   const [model, setModel] = useState("");
   const [models, setModels] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -46,11 +48,11 @@ export default function OllamaSettings() {
   const [verified, setVerified] = useState(false);
 
   useEffect(() => {
-    Promise.all([getSettings(), invoke<boolean>("has_ollama_key")])
-      .then(([s, stored]) => {
+    getSettings()
+      .then((s) => {
         setBaseUrl(s.base_url || CLOUD_URL);
         setModel(s.model || "");
-        setHasKey(stored);
+        setKey(s.api_key || "");
         // Seed the list with the saved choice so the select shows it before
         // anyone reconnects; otherwise a configured app reads as unconfigured.
         if (s.model) setModels([s.model]);
@@ -70,9 +72,13 @@ export default function OllamaSettings() {
   }
 
   /** Sends one real completion. This is the only call that can fail on a bad
-   *  key, so it is the only one whose success means anything. */
-  async function check(m: string, url: string) {
-    const reply = await invoke<string>("ollama_check", { baseUrl: url, model: m });
+   *  key, so it is the only one whose success means anything.
+   *
+   *  The key is a parameter rather than read from state: `connect()` tests a
+   *  key it has only just saved, and a `setKey` from the same tick has not
+   *  landed yet. */
+  async function check(m: string, url: string, apiKey: string) {
+    const reply = await invoke<string>("ollama_check", { baseUrl: url, model: m, apiKey });
     setVerified(true);
     // Quoting what came back beats a green tick: it shows the round trip
     // happened rather than asserting it did.
@@ -83,12 +89,14 @@ export default function OllamaSettings() {
     const url = baseUrl.trim() || CLOUD_URL;
     run(async () => {
       setVerified(false);
+      // Blank keeps what is stored; only a typed value replaces it.
+      const apiKey = keyDraft.trim() || key;
       if (keyDraft.trim()) {
-        await invoke("set_ollama_key", { key: keyDraft.trim() });
-        setHasKey(true);
+        await setSetting("api_key", apiKey);
+        setKey(apiKey);
         setKeyDraft("");
       }
-      const names = await invoke<string[]>("ollama_models", { baseUrl: url });
+      const names = await invoke<string[]>("ollama_models", { baseUrl: url, apiKey });
       await setSetting("base_url", url);
       setBaseUrl(url);
       setModels(names);
@@ -100,7 +108,7 @@ export default function OllamaSettings() {
         await setSetting("model", "");
         setNote(`${names.length} models loaded — your previous one is gone, pick another.`);
       } else if (model) {
-        await check(model, url);
+        await check(model, url, apiKey);
       } else {
         // Not "connected": nothing here has authenticated yet.
         setNote(`${names.length} models loaded. Pick one to test the key.`);
@@ -110,8 +118,10 @@ export default function OllamaSettings() {
 
   function removeKey() {
     run(async () => {
-      await invoke("set_ollama_key", { key: "" });
-      setHasKey(false);
+      // '' is the absent key, not a stored empty one: every has-a-key test in
+      // the app is a truthiness check on this row.
+      await setSetting("api_key", "");
+      setKey("");
       setKeyDraft("");
       setVerified(false);
       setNote("API key removed from this machine.");
@@ -125,9 +135,11 @@ export default function OllamaSettings() {
       await setSetting("model", next);
       // Test immediately: picking a model is the moment the user wants to know
       // whether the whole chain works, and it costs a few tokens.
-      await check(next, baseUrl.trim() || CLOUD_URL);
+      await check(next, baseUrl.trim() || CLOUD_URL, key);
     });
   }
+
+  const hasKey = key !== "";
 
   return (
     <section className={`mt-6 ${card}`}>
@@ -212,7 +224,7 @@ export default function OllamaSettings() {
             worked yesterday and may have been revoked since. */}
         <button
           className={cancelButton}
-          onClick={() => run(() => check(model, baseUrl.trim() || CLOUD_URL))}
+          onClick={() => run(() => check(model, baseUrl.trim() || CLOUD_URL, key))}
           disabled={busy || !model}
         >
           Test
@@ -222,8 +234,8 @@ export default function OllamaSettings() {
       <p className="mt-4 flex items-start gap-2 rounded-xl border border-dashed border-line bg-field p-3 text-xs text-muted">
         <Lightbulb className="mt-px size-4 shrink-0" />
         <span>
-          The key is kept in your OS keychain, not in this app's database, and is sent only to
-          the server above. Get one at <span className="font-mono">ollama.com/settings/keys</span>.
+          The key is stored in this app's database on this machine, and is sent only to the
+          server above. Get one at <span className="font-mono">ollama.com/settings/keys</span>.
         </span>
       </p>
     </section>
