@@ -3,8 +3,10 @@ import {
   ANALYTICS_FEED,
   LOAD_ANALYSIS,
   LOAD_REPORT,
+  RESET_TABLES,
   SAVE_ANALYSIS,
   SAVE_REPORT,
+  clearTables,
 } from "./queries";
 import type { Txn } from "./analyticsFeed";
 import type { Insight } from "./insights";
@@ -183,4 +185,25 @@ export async function saveReport(from: string, to: string, r: Omit<StoredReport,
     JSON.stringify(r.reframes),
     r.fingerprint,
   ]);
+}
+
+/** Empties every table the migrations created, leaving the schema in place.
+ *
+ *  The app holds the connection open, so the in-app reset cannot delete the
+ *  file the way `pnpm reset-db` does — see docs/db-reset-in-app.md. It clears
+ *  rows instead. The loop lives in queries.ts so `reset.check.ts` can run it
+ *  against a real SQLite database with foreign keys enforced.
+ */
+export async function resetDatabase() {
+  const conn = await db;
+  const tables = await conn.select<{ name: string }[]>(RESET_TABLES);
+  await clearTables(
+    tables.map((t) => t.name),
+    (sql) => conn.execute(sql),
+  );
+
+  // Restart AUTOINCREMENT, so the first row after a reset is id 1 rather than
+  // carrying on from the ledger that was just discarded. The table only exists
+  // once an AUTOINCREMENT table has been written to, hence the tolerated failure.
+  await conn.execute("DELETE FROM sqlite_sequence").catch(() => {});
 }

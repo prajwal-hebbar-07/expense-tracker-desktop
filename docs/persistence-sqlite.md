@@ -2,8 +2,8 @@
 id: persistence-sqlite
 type: decision
 status: active
-updated: 2026-08-05
-links: [stack, repo-layout, settings-schema, transaction-ledger, derived-balances, analysis-persistence, ollama-accounts, ollama-key-in-settings]
+updated: 2026-08-08
+links: [stack, repo-layout, settings-schema, transaction-ledger, derived-balances, analysis-persistence, ollama-accounts, ollama-key-in-settings, reset-db, db-reset-in-app]
 ---
 
 # Persistence: SQLite via tauri-plugin-sql
@@ -145,7 +145,7 @@ const rows = await db.select<Expense[]>(
 | `Database.load` rejects with a permission or "not allowed" error | `sql:default` missing from `capabilities/default.json` | Add the permission and restart `pnpm tauri dev` — capabilities are compiled in, not hot-reloaded |
 | Reads work, the first `db.execute(...)` write is rejected | `sql:allow-execute` missing; `sql:default` grants select only | Add it alongside `sql:default` and restart |
 | `expenses.db` never appears on disk | Nothing called `Database.load` — the migration only runs when a connection opens | Keep the `Database.load` call in `main.tsx` |
-| Schema changes have no effect after editing a migration | That version was already applied and recorded | Add a new migration with the next version; during early dev, deleting the `.db` file is acceptable — never after real data exists |
+| Schema changes have no effect after editing a migration | That version was already applied and recorded | Add a new migration with the next version; during early dev, wipe and re-migrate with `pnpm --filter desktop reset-db` — see [[reset-db]]. Never after real data exists |
 | Data missing after reinstall | Bundle `identifier` changed, moving the data directory | Restore the identifier; the old file is still on disk under the previous identifier |
 | `UNIQUE constraint failed` on insert | Reusing an explicit `id` instead of letting `AUTOINCREMENT` assign it | Omit `id` from the `INSERT` column list |
 | `database is locked` | Two connections writing concurrently | Load the database once and share the handle; do not open a connection per call |

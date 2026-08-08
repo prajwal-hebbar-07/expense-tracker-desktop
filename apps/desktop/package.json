@@ -9,6 +9,7 @@
     "vite:dev": "vite",
     "vite:build": "tsc && vite build",
     "typecheck": "tsc --noEmit",
+    "reset-db": "node reset-db.mjs",
     "test": "node --test *.check.ts",
     "preview": "vite preview",
     "tauri": "tauri"

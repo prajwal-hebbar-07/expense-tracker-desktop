@@ -144,3 +144,49 @@ export const DELETE_TRANSACTION = `DELETE FROM expense WHERE id = $1`;
 // UPDATE_TRANSACTION: editing a row must not silently re-file it, and a
 // categorisation run must not touch the amounts a balance is derived from.
 export const SET_CATEGORY = `UPDATE expense SET category = $1 WHERE id = $2`;
+
+// A reset takes the table list from the database rather than a literal array,
+// so a table added by a future migration is cleared the day it lands instead of
+// quietly surviving a "clear everything". `_sqlx_migrations` is excluded on
+// purpose: it is bookkeeping, not user data, and clearing it makes the plugin
+// re-run every migration against tables that still exist — which fails on the
+// first CREATE TABLE and leaves the app unable to open its own database.
+export const RESET_TABLES = `
+  SELECT name FROM sqlite_master
+  WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name <> '_sqlx_migrations'`;
+
+/**
+ * Empties `tables`, retrying the ones that fail until a pass clears nothing.
+ *
+ * sqlx opens SQLite with `PRAGMA foreign_keys = ON` (sqlx-sqlite 0.8.6
+ * src/options/mod.rs), so `account` cannot be emptied while an `expense` row
+ * still references it. Getting the order right up front would mean a
+ * topological sort of the FK graph; retrying the blocked ones reaches the same
+ * place and stays correct when a later migration adds a deeper chain.
+ *
+ * A pass that clears nothing means the failures are not about ordering, so the
+ * real error is thrown rather than spun on. There is no transaction to wrap
+ * this in — `execute` runs against a pool, so BEGIN/COMMIT would not span
+ * consecutive calls (the same constraint that makes a self-transfer one row).
+ * A failure therefore leaves the reset partly done; it is idempotent, and
+ * running it again finishes the job.
+ *
+ * ponytail: O(n²) worst case over ~7 tables. Topologically sort
+ * `PRAGMA foreign_key_list` if the schema ever grows enough to notice.
+ */
+export async function clearTables(tables: string[], exec: (sql: string) => Promise<unknown>) {
+  let remaining = tables;
+  while (remaining.length) {
+    const blocked: string[] = [];
+    let lastError: unknown;
+    for (const table of remaining) {
+      // `table` comes back out of sqlite_master, never from user input.
+      await exec(`DELETE FROM ${table}`).catch((e) => {
+        lastError = e;
+        blocked.push(table);
+      });
+    }
+    if (blocked.length === remaining.length) throw lastError;
+    remaining = blocked;
+  }
+}

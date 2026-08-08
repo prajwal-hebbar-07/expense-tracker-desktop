@@ -2,13 +2,13 @@
 id: index
 type: reference
 status: active
-updated: 2026-08-05
+updated: 2026-08-08
 links: []
 ---
 
 # Map
 
-Forty-one nodes besides this one is well past the point where the graph needs a map. Start from the question, not the top.
+Forty-three nodes besides this one is well past the point where the graph needs a map. Start from the question, not the top.
 
 ## Where do I start?
 
@@ -16,6 +16,7 @@ Forty-one nodes besides this one is well past the point where the graph needs a 
 |---|---|
 | What is this app built out of? | [[stack]], [[repo-layout]], [[turborepo]] |
 | How is data stored and read? | [[persistence-sqlite]], [[transaction-ledger]], [[derived-balances]] |
+| How do I wipe the database and start clean? | [[db-reset-in-app]] (from Settings), [[reset-db]] (from a terminal) |
 | What does a ledger row look like, and why? | [[card-movement]], [[debit-red]] |
 | Anything about a credit card | [[card-movement]], [[card-due-day]] |
 | What colour / size / shape do I use? | [[design-tokens]], [[accent-green]] |

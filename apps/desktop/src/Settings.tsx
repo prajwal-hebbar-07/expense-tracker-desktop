@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { db } from "./db";
+import { db, resetDatabase } from "./db";
 import { toMinor, fromMinor, formatAmount } from "./money";
-import { input, button, iconButton, card, errorBox, h1, h2, lede, page } from "./ui";
+import { input, button, iconButton, card, errorBox, dangerButton, h1, h2, lede, page } from "./ui";
 import ConfirmDelete from "./ConfirmDelete";
 import OllamaSettings from "./OllamaSettings";
 import { Bank, Card as CardIcon } from "./icons";
@@ -21,6 +21,10 @@ export default function Settings() {
   const [cards, setCards] = useState<Card[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
+
+  // Reset-everything guard. Separate from `pending`, which identifies one row
+  // by table and id; this deletes across all of them and belongs to no row.
+  const [resetting, setResetting] = useState(false);
 
   // Add-account form
   const [bank, setBank] = useState("");
@@ -54,13 +58,18 @@ export default function Settings() {
     refresh().catch((e) => setError(String(e)));
   }, []);
 
-  // Escape always backs out of a pending delete.
+  // Escape always backs out of a destructive confirmation, whether it is one
+  // row or the whole database.
   useEffect(() => {
-    if (!pending) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setPending(null);
+    if (!pending && !resetting) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setPending(null);
+      setResetting(false);
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [pending]);
+  }, [pending, resetting]);
 
   // Every handler routes through this so a rejected promise surfaces in the UI
   // instead of becoming a silent unhandled rejection.
@@ -130,6 +139,19 @@ export default function Settings() {
       // `table` comes from this module's own Pending union, never user input.
       await (await db).execute(`DELETE FROM ${table} WHERE id = $1`, [id]);
       setPending(null);
+    });
+  }
+
+  /** Only ever called from the danger zone's second click. */
+  function confirmReset() {
+    run(async () => {
+      await resetDatabase();
+      // Reload rather than refresh(): every screen holds its own state read
+      // from the database — OllamaSettings' account list, the Report page's
+      // stored prose — and this component can only refresh its own two lists.
+      // A reload is the one call that makes all of them re-read an empty
+      // database, and after a wipe there is no in-flight work to preserve.
+      window.location.reload();
     });
   }
 
@@ -377,6 +399,29 @@ export default function Settings() {
       </section>
 
       <OllamaSettings />
+
+      <section className={`mt-6 ${card} border-danger/40`}>
+        <h2 className={h2}>Danger zone</h2>
+        <p className="mt-1 text-sm text-muted">
+          Clears the database completely: every transaction, bank account, credit card, saved
+          analysis and report, and every Ollama account and API key. The app restarts empty, as
+          though it had just been installed. There is no undo and no backup.
+        </p>
+
+        <div className="mt-4 flex">
+          {resetting ? (
+            <ConfirmDelete
+              label="everything in the database"
+              onCancel={() => setResetting(false)}
+              onConfirm={confirmReset}
+            />
+          ) : (
+            <button className={dangerButton} onClick={() => setResetting(true)}>
+              Reset database
+            </button>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
